@@ -270,7 +270,7 @@ def _check_and_route(
     request.highest_severity = rules.highest_severity(checked).value
 
     if provider is not None and knowledge_base is not None:
-        record = _analyse(provider, knowledge_base, data, request, checked)
+        record = _analyse(session, provider, knowledge_base, data, request, checked)
         _store_analysis(session, request, record, now)
         _move(session, request, Status.ANALYSED, now, None)
 
@@ -282,6 +282,7 @@ def _check_and_route(
 
 
 def _analyse(
+    session: Session,
     provider: LLMProvider,
     kb: KnowledgeBase,
     data: PurchaseRequestIn,
@@ -296,7 +297,8 @@ def _analyse(
     view = data.model_dump(mode="json")
     view["amount"] = str(request.amount)
     view["amount_eur"] = str(request.amount_eur)
-    return analyse(provider, view, checked, hits)
+    categories = sorted(known_categories(session))
+    return analyse(provider, view, checked, hits, categories)
 
 
 def _store_analysis(

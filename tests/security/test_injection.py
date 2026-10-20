@@ -98,6 +98,7 @@ def test_a_model_that_obeys_the_injection_changes_nothing_that_matters(client_wi
         "unexplained_finding",
         "recommendation_overridden",
         "unsupported_figure",
+        "unknown_category",  # "MRO" is not one of the spend categories
     }
 
 

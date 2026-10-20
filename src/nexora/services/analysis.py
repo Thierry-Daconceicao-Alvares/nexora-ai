@@ -32,7 +32,7 @@ from nexora.llm.base import LLMError, LLMProvider
 from nexora.llm.costs import estimate_cost_usd
 from nexora.services.retrieval import Hit
 
-PROMPT_VERSION = "analysis-v1"
+PROMPT_VERSION = "analysis-v2"  # v2: spend category chosen from a closed list
 MAX_ATTEMPTS = 2  # one retry when the answer does not match the schema
 
 Action = Literal["approve", "request_info", "escalate", "reject"]
@@ -75,7 +75,8 @@ What you receive:
 
 What you return (JSON, in English):
 - summary: two or three sentences on what is requested, from whom, for how much.
-- spend_category: a short category name, such as "MRO spare parts" or "IT hardware".
+- spend_category: the category of <spend_categories> that best describes what is bought,
+  judged from the description. The requester's item_category may be wrong.
 - findings: one item for EVERY rule whose outcome is "flag", and only those. Explain in
   plain words why it matters and cite the passage ids that support it. Cite nothing
   when no passage applies.
@@ -100,7 +101,12 @@ def _block(name: str, value: Any) -> str:
     return f"<{name}>\n{text}\n</{name}>"
 
 
-def build_user_prompt(request: dict[str, Any], results: list[CheckResult], hits: list[Hit]) -> str:
+def build_user_prompt(
+    request: dict[str, Any],
+    results: list[CheckResult],
+    hits: list[Hit],
+    categories: list[str] | None = None,
+) -> str:
     rule_results = [
         {
             "rule_id": r.rule_id,
@@ -121,20 +127,26 @@ def build_user_prompt(request: dict[str, Any], results: list[CheckResult], hits:
         }
         for h in hits
     ]
-    return "\n\n".join(
-        [
-            _block("rule_results", rule_results),
-            _block("policy_passages", passages),
-            _block("untrusted_request", request),
-            "Analyse this request and answer with the JSON object only.",
-        ]
-    )
+    blocks = [
+        _block("rule_results", rule_results),
+        _block("policy_passages", passages),
+    ]
+    if categories:
+        blocks.append(_block("spend_categories", categories))
+    blocks += [
+        _block("untrusted_request", request),
+        "Analyse this request and answer with the JSON object only.",
+    ]
+    return "\n\n".join(blocks)
 
 
-def response_schema() -> dict[str, Any]:
+def response_schema(categories: list[str] | None = None) -> dict[str, Any]:
     """The JSON schema of AnalysisOutput with its $defs inlined: a flat schema
-    is accepted by every structured-output API."""
+    is accepted by every structured-output API. With `categories`, the spend
+    category must be one of them."""
     schema = AnalysisOutput.model_json_schema()
+    if categories:
+        schema["properties"]["spend_category"]["enum"] = list(categories)
     definitions = schema.pop("$defs", {})
 
     def inline(node: Any) -> Any:
@@ -231,9 +243,16 @@ SERIOUS = {
 
 
 def verify(
-    output: AnalysisOutput, results: list[CheckResult], hits: list[Hit], context: str
+    output: AnalysisOutput,
+    results: list[CheckResult],
+    hits: list[Hit],
+    context: str,
+    categories: list[str] | None = None,
 ) -> Verification:
     issues: list[dict[str, str]] = []
+    if categories and output.spend_category not in categories:
+        issues.append({"code": "unknown_category", "detail": f"'{output.spend_category}' removed"})
+        output.spend_category = ""
     passage_ids = {h.passage.id for h in hits}
     flagged = {r.rule_id: r for r in results if r.outcome is not Outcome.PASS}
 
@@ -326,10 +345,11 @@ def analyse(
     request: dict[str, Any],
     results: list[CheckResult],
     hits: list[Hit],
+    categories: list[str] | None = None,
 ) -> AnalysisRecord:
-    user_prompt = build_user_prompt(request, results, hits)
+    user_prompt = build_user_prompt(request, results, hits, categories)
     record = AnalysisRecord(status="unavailable", provider=provider.name, model=provider.model)
-    schema = response_schema()
+    schema = response_schema(categories)
     output = None
     for _ in range(MAX_ATTEMPTS):
         record.attempts += 1
@@ -355,7 +375,7 @@ def analyse(
     if output is None:
         return record
 
-    checked = verify(output, results, hits, user_prompt)
+    checked = verify(output, results, hits, user_prompt, categories)
     record.status = "completed"
     record.verification = checked.status
     record.output = checked.output.model_dump()

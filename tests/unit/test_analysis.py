@@ -275,3 +275,14 @@ def test_quotations_from_the_input_are_accepted_even_cut_short(hits):
     )
     record, _ = run(hits, good_output(summary=summary))
     assert record.verification == "verified", record.issues
+
+
+def test_the_spend_category_must_come_from_the_list(hits):
+    categories = ["electrical_services", "spare_parts"]
+    provider = Canned(good_output(spend_category="MRO spare parts"))
+    record = analyse(provider, REQUEST, RESULTS, hits, categories)
+    assert record.output["spend_category"] == ""
+    assert {"code": "unknown_category", "detail": "'MRO spare parts' removed"} in record.issues
+    assert record.verification == "corrected"
+    schema = response_schema(categories)
+    assert schema["properties"]["spend_category"]["enum"] == categories

@@ -1,0 +1,81 @@
+# Evaluates NEXORA AI on the labelled set (data/evaluation) with a real model
+# and commits the report to eval/results/<date>-<provider>-<model>/.
+# Started manually: Actions > Evaluate > Run workflow. Needs the
+# MISTRAL_API_KEY (or GEMINI_API_KEY) repository secret. About 160 model
+# calls and 20 to 30 minutes on Mistral's free plan.
+name: Evaluate
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: Model provider
+        type: choice
+        options: [mistral, gemini, scripted]
+        default: mistral
+      model:
+        description: Model id (empty for the default of the provider)
+        type: string
+        default: ""
+      pause:
+        description: Seconds between two requests (rate limits of free plans)
+        type: string
+        default: "1"
+      publish:
+        description: Commit the report to the repository
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - name: Evaluate
+        env:
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PROVIDER: ${{ inputs.provider }}
+          MODEL: ${{ inputs.model }}
+          PAUSE: ${{ inputs.pause }}
+        run: |
+          set -o pipefail
+          if [ -n "$MODEL" ]; then export NEXORA_MISTRAL_MODEL="$MODEL" NEXORA_GEMINI_MODEL="$MODEL"; fi
+          if [ "$PROVIDER" = "mistral" ]; then label="${MODEL:-ministral-14b-latest}";
+          elif [ "$PROVIDER" = "gemini" ]; then label="${MODEL:-gemini-3.5-flash-lite}";
+          else label="scripted"; fi
+          folder="eval/results/$(date -u +%F)-$PROVIDER-$label"
+          [ "$PROVIDER" = "scripted" ] && folder="eval/results/$(date -u +%F)-scripted"
+          echo "FOLDER=$folder" >> "$GITHUB_ENV"
+          python scripts/evaluate.py --provider "$PROVIDER" --pause "$PAUSE" --out "$folder" 2>&1 | tee evaluate.log
+      - if: always()
+        run: |
+          { cat "$FOLDER/report.md" 2>/dev/null || tail -50 evaluate.log; } >> "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: evaluation
+          path: |
+            eval/results/
+            evaluate.log
+      - name: Commit the report
+        if: inputs.publish
+        env:
+          AUTHOR_NAME: Thierry Daconceição Alvares
+          AUTHOR_EMAIL: 91541305+Thierry-Daconceicao-Alvares@users.noreply.github.com
+        run: |
+          git config user.name "$AUTHOR_NAME"
+          git config user.email "$AUTHOR_EMAIL"
+          git add "$FOLDER"
+          git commit -m "Add the evaluation results of run ${{ github.run_id }}"
+          git pull --rebase origin main
+          git push origin HEAD:main

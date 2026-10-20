@@ -77,7 +77,8 @@ class ScriptedProvider:
                 f"{request.get('department')} requests {request.get('description')} "
                 f"from supplier {request.get('supplier_id')}, total {total}."
             ),
-            "spend_category": str(request.get("item_category", "")).replace("_", " "),
+            # The requester's declared category, taken as it is.
+            "spend_category": str(request.get("item_category", "")),
             "findings": findings,
             "missing_information": [
                 MISSING[r["rule_id"]] for r in flagged if r["rule_id"] in MISSING
