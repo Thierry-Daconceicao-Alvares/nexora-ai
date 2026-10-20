@@ -82,6 +82,8 @@ class RequestRow(Base):
     status: Mapped[str] = mapped_column(String(30))
     route: Mapped[str | None] = mapped_column(String(20))
     highest_severity: Mapped[str] = mapped_column(String(10), default="info")
+    # How the request arrived: api, form, csv or email (through n8n).
+    channel: Mapped[str] = mapped_column(String(10), default="api", server_default="api")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 

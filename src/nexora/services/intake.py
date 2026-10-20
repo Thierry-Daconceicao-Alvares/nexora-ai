@@ -16,13 +16,13 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from nexora.db.models import AnalysisRow, CheckRow, CitationRow, RequestRow
+from nexora.db.models import AnalysisRow, CheckRow, CitationRow, RequestRow, UserRow
 from nexora.db.repository import DatabaseFacts, known_categories
-from nexora.domain.models import CheckResult, Status, User
+from nexora.domain.models import CheckResult, Role, Status, User
 from nexora.domain.rules_config import RulesConfig
 from nexora.domain.schemas import PurchaseRequestIn
 from nexora.llm.base import LLMProvider
@@ -59,8 +59,21 @@ def submit(
     idempotency_key: str | None = None,
     provider: LLMProvider | None = None,
     knowledge_base: KnowledgeBase | None = None,
+    channel: str = "api",
+    on_behalf_of: str | None = None,
 ) -> IntakeResult:
+    """Store and check a new request.
+
+    `on_behalf_of` (the integration service only): the email address of the
+    requester the request comes from, as for a request received by email. The
+    request then belongs to that requester.
+    """
     require_submit(actor)
+    requester_id = _requester(session, actor, on_behalf_of)
+    if actor.role is Role.INTAKE_SERVICE and on_behalf_of:
+        channel = "email"
+    if channel not in CHANNELS:
+        raise Invalid(f"Unknown channel '{channel}'.", field="channel")
     digest = payload_hash(payload)
     key = idempotency_key or f"ref:{payload.get('external_ref')}"
 
@@ -93,7 +106,8 @@ def submit(
         idempotency_key=key,
         payload_hash=digest,
         version=1,
-        requester_id=actor.id,
+        requester_id=requester_id,
+        channel=channel,
         status=Status.SUBMITTED,
         created_at=now,
         updated_at=now,
@@ -103,7 +117,6 @@ def submit(
     try:
         session.flush()
     except IntegrityError as error:  # a concurrent submission won the race
-        session.rollback()
         raise Conflict("This request was submitted at the same time by another call.") from error
 
     audit.record(
@@ -114,11 +127,29 @@ def submit(
         actor_id=actor.id,
         external_ref=request.external_ref,
         amount_eur=float(request.amount_eur),
+        channel=channel,
+        requester_id=requester_id,
     )
     checked = _check_and_route(
         session, request, data, report.checks, actor, rule_set, now, provider, knowledge_base
     )
     return IntakeResult(request=request, checks=report.checks + checked)
+
+
+CHANNELS = {"api", "form", "csv", "email"}
+
+
+def _requester(session: Session, actor: User, on_behalf_of: str | None) -> str:
+    if not on_behalf_of:
+        return actor.id
+    if actor.role is not Role.INTAKE_SERVICE:
+        raise Forbidden("Only the integration service submits on behalf of a requester.")
+    user = session.scalar(
+        select(UserRow).where(func.lower(UserRow.email) == on_behalf_of.strip().lower())
+    )
+    if user is None or user.role != Role.REQUESTER.value:
+        raise Invalid(f"{on_behalf_of} is not a known requester of Nexora.", field="on_behalf_of")
+    return user.id
 
 
 def resubmit(

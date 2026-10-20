@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from typing import Annotated, Any
 
 import yaml
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select, text
@@ -28,8 +28,9 @@ from nexora.domain.models import Role, User
 from nexora.domain.rules_config import load_rules
 from nexora.domain.workflow import DECIDERS
 from nexora.llm import LLMProvider, build_provider
-from nexora.services import intake, review
+from nexora.services import csv_import, intake, metrics, notifications, review
 from nexora.services.authorization import Forbidden, can_read
+from nexora.services.csv_import import MAX_CSV_BYTES
 from nexora.services.errors import Conflict, Invalid, NotFound
 from nexora.services.retrieval import load_knowledge_base
 
@@ -168,6 +169,16 @@ def create_app(
         actor: ActorDep,
         session: SessionDep,
         idempotency_key: Annotated[str | None, Header(max_length=100)] = None,
+        channel: Annotated[
+            str, Header(description="api, form, csv or email (set by the intake service).")
+        ] = "api",
+        on_behalf_of: Annotated[
+            str | None,
+            Header(
+                max_length=200,
+                description="Integration service only: email of the requester.",
+            ),
+        ] = None,
     ) -> Any:
         limiter.check(actor.id)
         result = intake.submit(
@@ -179,6 +190,8 @@ def create_app(
             idempotency_key,
             provider=provider,
             knowledge_base=knowledge_base,
+            channel=channel,
+            on_behalf_of=on_behalf_of,
         )
         if not result.accepted:
             session.commit()  # keep the audit event of the rejection
@@ -280,6 +293,77 @@ def create_app(
             session, actor, request_id, body.action, body.reason, body.version, clock()
         )
         return out.DecisionResult(decision=out.Decision.of(decision), status=decision.to_status)
+
+    @app.get("/metrics", tags=["dashboard"])
+    def get_metrics(
+        actor: ActorDep, session: SessionDep, days: Annotated[int, Query(ge=1, le=365)] = 30
+    ) -> dict[str, Any]:
+        """Figures for the dashboard, computed from the stored data."""
+        if actor.role not in {Role.REVIEWER, Role.APPROVER, Role.ADMIN, Role.INTAKE_SERVICE}:
+            raise Forbidden("Only procurement and the integration service read the metrics.")
+        return metrics.compute(session, clock(), days)
+
+    def require_integration(actor: User) -> None:
+        if actor.role not in {Role.INTAKE_SERVICE, Role.ADMIN}:
+            raise Forbidden("Only the integration service reads this feed.")
+
+    @app.get("/integration/outbox", tags=["integration"])
+    def integration_outbox(
+        actor: ActorDep,
+        session: SessionDep,
+        after: Annotated[int, Query(ge=0)] = 0,
+        limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    ) -> dict[str, Any]:
+        """Messages to send for the events after the cursor, with their recipients.
+        n8n stores `next_cursor` and asks again from there."""
+        require_integration(actor)
+        return notifications.outbox(session, after, settings.ui_url, limit)
+
+    @app.get("/integration/reminders", tags=["integration"])
+    def integration_reminders(
+        actor: ActorDep,
+        session: SessionDep,
+        older_than_hours: Annotated[int, Query(ge=1, le=24 * 30)] = 48,
+    ) -> list[dict[str, Any]]:
+        """Requests waiting for a person for longer than the given number of hours."""
+        require_integration(actor)
+        return notifications.reminders(session, clock(), older_than_hours, settings.ui_url)
+
+    @app.get("/integration/digest", tags=["integration"])
+    def integration_digest(
+        actor: ActorDep, session: SessionDep, days: Annotated[int, Query(ge=1, le=31)] = 7
+    ) -> dict[str, Any]:
+        """The weekly summary for the Head of Procurement."""
+        require_integration(actor)
+        return notifications.digest(session, clock(), days, settings.ui_url)
+
+    @app.post("/requests/import", tags=["requests"])
+    def import_requests(
+        actor: ActorDep,
+        session: SessionDep,
+        file: Annotated[UploadFile, File(description="CSV file, one request per row.")],
+    ) -> dict[str, Any]:
+        """Submit every row of a CSV file. Each row is stored or refused on its
+        own; the answer lists the result of every row."""
+        limiter.check(actor.id)
+        content = file.file.read(MAX_CSV_BYTES + 1)
+        if len(content) > MAX_CSV_BYTES:
+            raise Invalid("The file is larger than 1 MB.", field="file")
+        rows = csv_import.parse(content)
+        results = []
+        for number, payload in rows:
+            results.append(
+                csv_import.submit_row(
+                    session, actor, number, payload, rule_set, clock(), provider, knowledge_base
+                )
+            )
+        return {
+            "rows": len(results),
+            "created": sum(r["status"] == "created" for r in results),
+            "already_submitted": sum(r["status"] == "already_submitted" for r in results),
+            "refused": sum(r["status"] == "refused" for r in results),
+            "results": results,
+        }
 
     @app.get("/events", response_model=list[out.AuditEvent], tags=["integration"])
     def events(

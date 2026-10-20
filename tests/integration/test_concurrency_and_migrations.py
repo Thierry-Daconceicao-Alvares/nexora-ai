@@ -3,12 +3,14 @@ built by the Alembic migrations."""
 
 from __future__ import annotations
 
+from alembic import command
 from alembic.autogenerate import compare_metadata
+from alembic.config import Config
 from alembic.migration import MigrationContext
 from sqlalchemy import inspect, text
 
 from nexora.db.models import Base, RequestRow
-from nexora.db.session import make_engine, make_session_factory, migrate
+from nexora.db.session import BASELINE, MIGRATIONS, make_engine, make_session_factory, migrate
 from nexora.domain.models import Role, User
 from nexora.domain.workflow import Action
 from nexora.services import review
@@ -51,14 +53,21 @@ def test_the_migrations_build_exactly_the_models(client, settings):
         context = MigrationContext.configure(connection)
         assert compare_metadata(context, Base.metadata) == []
         version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar()
-    assert version == "0002"
+    assert version == "0003"
 
 
 def test_a_database_created_before_the_migrations_is_upgraded(tmp_path):
     engine = make_engine(f"sqlite:///{tmp_path / 'legacy.db'}")
-    legacy = [t for t in Base.metadata.sorted_tables if t.name != "decisions"]
-    Base.metadata.create_all(engine, tables=legacy)  # what phases 3 and 4 did
+    # The schema of phases 3 and 4, created without Alembic.
+    config = Config()
+    config.set_main_option("script_location", str(MIGRATIONS))
+    with engine.begin() as connection:
+        config.attributes["connection"] = connection
+        command.upgrade(config, BASELINE)
+        connection.execute(text("DROP TABLE alembic_version"))
     migrate(engine)
     tables = set(inspect(engine).get_table_names())
     assert {"decisions", "alembic_version", "purchase_requests"} <= tables
+    columns = {c["name"] for c in inspect(engine).get_columns("purchase_requests")}
+    assert "channel" in columns
     migrate(engine)  # a second run changes nothing

@@ -180,7 +180,10 @@ class RequestSummary(BaseModel):
     status: str
     route: str | None
     highest_severity: str
+    channel: str
+    requester_id: str
     created_at: datetime
+    updated_at: datetime
 
     @classmethod
     def of(cls, row: RequestRow) -> RequestSummary:
@@ -196,13 +199,15 @@ class RequestSummary(BaseModel):
             status=row.status,
             route=row.route,
             highest_severity=row.highest_severity,
+            channel=row.channel,
+            requester_id=row.requester_id,
             created_at=row.created_at,
+            updated_at=row.updated_at,
         )
 
 
 class RequestDetail(RequestSummary):
     version: int
-    requester_id: str
     item_category: str
     item_code: str | None
     quantity: float
@@ -223,7 +228,6 @@ class RequestDetail(RequestSummary):
         return cls(
             **summary,
             version=row.version,
-            requester_id=row.requester_id,
             item_category=row.item_category,
             item_code=row.item_code,
             quantity=float(row.quantity),

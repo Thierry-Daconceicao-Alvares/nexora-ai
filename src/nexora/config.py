@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     synthetic_dir: Path = ROOT / "data" / "synthetic"
     # Requests submitted per actor and minute before a 429 (basic protection).
     rate_limit_per_minute: int = 60
+    # Where the interface runs: the links in the notifications point there.
+    ui_url: str = "http://localhost:8501"
 
     # AI analysis. "auto" uses Mistral when its key is set, else Gemini when its
     # key is set, else the scripted stand-in (no model, no network), so the
