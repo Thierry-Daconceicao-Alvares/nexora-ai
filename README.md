@@ -53,22 +53,22 @@ The reviewer sees the verification status, the list of issues and the cited pass
 
 ## Evaluation
 
-156 labelled synthetic requests in 30 scenarios, run through the whole application ([method](docs/evaluation.md)). With Mistral (`ministral-14b-latest`, free plan), [prompt v3](eval/results/2026-10-20-mistral-ministral-14b-latest-prompt-v3/report.md):
+Labelled synthetic requests run through the whole application: a development set (156 requests, 30 scenarios) used to improve the prompt, and a held-out set (153 requests, other items and phrasings) committed before any tuning ([method and all runs](docs/evaluation.md)). With Mistral (`ministral-14b-latest`, free plan), prompt v4, [held-out set](eval/results/2026-10-20-mistral-ministral-14b-latest-prompt-v4-holdout/report.md):
 
 | Criterion | Target | Result |
 |---|---|---|
 | Malformed requests rejected, with the fields to fix | 100% | 12/12 |
-| Rules and routing as labelled | 100% | 144/144 |
+| Rules and routing as labelled | 100% | 141/141 |
 | Repeated submissions processed once | 0 double records | 0 |
-| Valid end state when the model answers outside the schema or times out | 100% | 288/288 |
-| Spend category above a keyword baseline (95.1%) | above | **94.4%, not met** |
-| Citations supporting the statement | ≥ 90% | **80.4%, not met** |
-| Unsupported figures, quotations, citations and explanations | shown, never hidden | 27 caught and shown to the reviewer |
+| Valid end state when the model answers outside the schema or times out | 100% | 282/282 |
+| Spend category, against a keyword baseline (88.7%) | above | 97.2% |
+| Citations supporting the statement | ≥ 90% | **82.5%, not met** |
+| Unsupported figures, quotations, citations, explanations, contradictions | shown, never hidden | 70 caught and shown to the reviewer |
 | Unauthorised actions blocked | 100% | 54/54 |
-| Decisions audited (who, when, what, why, version, evidence) | 100% | 167/167 |
-| Median time from submission to recommendation; cost | < 10 s; < $0.01 | 6.0 s; $0.00055 |
+| Decisions audited (who, when, what, why, version, evidence) | 100% | 162/162 |
+| Median time from submission to recommendation; cost | < 10 s; < $0.01 | 5.6 s; $0.00058 |
 
-What it shows: the deterministic part does what the policies say, with or without a model. The model is useful for reading and explaining, not for deciding: on the 61 requests without any finding it suggested approval for only 13, asking for documents the policies do not require, and in 5 cases contradicting the rule results it was given. Its suggestion matches the labels for 65.3% of requests, against 93.8% for the scripted stand-in. Nothing it suggests changes a finding or a route. Details, the prompt change from v2 to v3, and one revision of the citation labels are in [docs/evaluation.md](docs/evaluation.md).
+The deterministic part meets its criteria with or without a model. The first prompt suggested approval for only 13 of 61 requests without any finding; prompt v4 and a check that flags statements contradicting a passed rule bring the suggestions in line with the labels for 90.1% of held-out requests (54 of 60 clean requests suggested for approval). Citations stay below target, and the screen misses injection phrasings outside its patterns; nothing the model suggests changes a finding or a route.
 
 ## The review workflow
 
@@ -120,7 +120,7 @@ Demo tokens (not secrets, listed in [`config/demo_users.yaml`](config/demo_users
 ## Tests
 
 ```bash
-pytest          # 175 tests: validation, rules, screening, retrieval, verification, injection,
+pytest          # 177 tests: validation, rules, screening, retrieval, verification, injection,
                 # review workflow and permissions, concurrency, migrations, feeds, CSV, API,
                 # and the scripted evaluation on the labelled set
 pip install -e ".[ui,e2e]" && playwright install chromium

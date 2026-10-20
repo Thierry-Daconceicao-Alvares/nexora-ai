@@ -482,6 +482,7 @@ def metrics(run: Run) -> dict[str, Any]:
         "unsupported_quote": 0,
         "invalid_citation": 0,
         "unknown_rule": 0,
+        "contradicts_rule": 0,
     }
     for r in completed:
         for code in r.get("issues", []):

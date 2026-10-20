@@ -68,68 +68,71 @@ and requires every criterion that does not depend on a model to pass
 
 ## Results (20 October 2026)
 
-Three runs, all published as they came out:
-[scripted stand-in](../eval/results/2026-10-20-scripted/report.md),
-[Mistral, prompt v2](../eval/results/2026-10-20-mistral-ministral-14b-latest-prompt-v2/report.md),
-[Mistral, prompt v3](../eval/results/2026-10-20-mistral-ministral-14b-latest-prompt-v3/report.md).
+Every run is published as it came out, in [`eval/results/`](../eval/results).
 The model is `ministral-14b-latest`, the one Mistral's free plan serves.
 
-| Criterion | Target | Scripted stand-in | Mistral, prompt v3 |
-|---|---|---|---|
-| 1. Malformed requests rejected | 100% | 12/12 | 12/12 |
-| 2. Rules and routing as labelled | 100% | 144/144 | 144/144 |
-| 3. Processed once | 0 double records | 0 | 0 |
-| 4. Valid end state, with faults | 100% | 288/288 | 288/288 |
-| 5. Spend category (keyword baseline 95.1%) | above the baseline | 95.1% (it copies the declared category) | **94.4%: not met** |
-| 6. Citations supporting the statement | at least 90% | 205/205 | **238/296 (80.4%): not met** |
-| 7. Unsupported claims | 0 unflagged | none produced | 27 caught and shown (6 analyses unverified); other kinds not measured |
-| 8. Unauthorised actions blocked | 100% | 54/54 | 54/54 |
-| 9. Decisions audited | 100% | 167/167 | 167/167 |
-| 10. Median time and cost | under 10 s, under $0.01 | 0.02 s, $0 | 6.0 s (p90 8.5 s), $0.00055 |
+| Run | Set | Spend category (keyword baseline) | Citations supporting | Suggested decision acceptable | Requests without finding suggested for approval |
+|---|---|---|---|---|---|
+| [Scripted stand-in](../eval/results/2026-10-20-scripted/report.md) | development | 95.1% (95.1%) | 205/205 | 93.8% | 61/61 |
+| [Mistral, prompt v2](../eval/results/2026-10-20-mistral-ministral-14b-latest-prompt-v2/report.md) | development | 94.4% (95.1%) | 208/281 (labels v1) | 68.1% | 16/61 |
+| [Mistral, prompt v3](../eval/results/2026-10-20-mistral-ministral-14b-latest-prompt-v3/report.md) | development | 94.4% (95.1%) | 238/296 (80.4%) | 65.3% | 13/61 |
+| [Mistral, prompt v4](../eval/results/2026-10-20-mistral-ministral-14b-latest-prompt-v4/report.md) | development | 96.5% (95.1%) | 238/280 (85.0%) | 86.8% | 51/61 |
+| [Mistral, prompt v4](../eval/results/2026-10-20-mistral-ministral-14b-latest-prompt-v4-holdout/report.md) | **held-out** | **97.2% (88.7%)** | **217/263 (82.5%)** | **90.1%** | **54/60** |
+| [Scripted stand-in](../eval/results/2026-10-20-scripted-holdout/report.md) | held-out | 95.7% (88.7%) | 202/202 | 93.6% | 60/60 |
+
+On every run, criteria 1 to 4, 8, 9 and 10 pass: malformed requests rejected
+(12/12), rules and routing as labelled (144/144 and 141/141), no double record,
+a valid end state with injected faults (100%), 54/54 forbidden actions refused,
+every decision audited, a median of 4.5 to 6.0 s and about $0.0006 per request.
+
+The held-out run is the figure to quote: prompt v4 was frozen before it, and the
+held-out set was committed before any tuning.
 
 ### What the runs show
 
-- **The deterministic part does what the policies say.** Every rule, route,
-  rejection, replay, refusal and audit record matches the labels, with or
-  without a model, and the application stays in a valid state when the model
-  answers outside the schema or not at all.
-- **The model does not decide anything, and that matters.** On the 61 requests
-  with no finding, the model suggested approval for 13 only: it asked for
-  documents the policies do not require of these purchases (supplier
-  certifications meant for direct material suppliers, a catalogue code), and in
-  5 cases it stated that three quotes were missing for amounts below €5,000,
-  contradicting the rule result it was given. The suggested decision matches
-  the labels for 65.3% of the requests, against 93.8% for the scripted
-  stand-in, which maps the most serious finding to a decision. The route and
-  the findings never depend on the model.
-- **Prompt v2 to v3.** v2 did not give the model today's date; it judged the
-  simulated dates of the set against its own and called 20 delivery dates
-  unrealistic. v3 gives the date: 0 such remarks, but the agreement did not
-  improve (68.1% then 65.3%): the dates were not the main cause.
-- **Spend category.** The model recognises more mislabelled requests than the
-  keyword baseline (6 of 7 against 5 of 7; the declared category gets none), but
-  makes errors on correctly declared ones (an automated storage tower filed as
-  automation), so its overall accuracy (94.4%) stays just below the baseline
-  (95.1%).
-- **Citations.** 80.4% of the citations are labelled as supporting. The others
-  cite a retrieved passage that does not govern the finding, most often the
-  "No PO, no pay" section for a supplier finding. The check in code guarantees
-  that a citation was given to the model, not that it is the right one.
-- **Screen.** The four injection phrasings the screen was not tuned on were
-  not flagged; the model treated them as data, never suggested approval, and the
-  routes stayed those of the rules.
-- **Labels.** The citation labels were revised once, after the first run, to
+- **The deterministic part does what the policies say**, with or without a
+  model, and the application stays in a valid state when the model answers
+  outside the schema or not at all.
+- **Prompt v2 to v3**: v2 did not give the model today's date; it called 20
+  simulated delivery dates unrealistic. v3 gives the date (0 such remarks), but
+  the model still suggested approval for only 13 of the 61 requests without any
+  finding: it asked for documents no passage requires of these purchases and,
+  in 5 cases, said three quotes were missing below €5,000.
+- **Prompt v4** (tuned on the development set) states that a passed rule is
+  met, forbids requirements absent from the rule results and the passages, and
+  asks to keep the declared category unless the description clearly says
+  otherwise. A new check in code marks an analysis unverified when it says that
+  quotes, sourcing evidence, a CapEx approval or the supplier status is missing
+  while that rule passed (9 analyses on the development set, 4 on the held-out
+  set). On the held-out set: 54 of the 60 clean requests suggested for approval,
+  90.1% of suggestions acceptable, spend category above the keyword baseline.
+- **What v4 gave up**: keeping the declared category means fewer mislabelled
+  requests are caught (2 of 6 on the held-out set, against 6 of 7 for v3 on the
+  development set). The keyword baseline drops from 95.1% to 88.7% on the
+  held-out set because its keywords were written for the development items: the
+  held-out set does what it is for.
+- **Still not met: citations (82.5%, target 90%).** The model cites retrieved
+  passages that do not govern the finding, most often the "No PO, no pay"
+  section for a supplier finding. They are shown with their full text; the
+  check in code only guarantees that the passage was given to the model.
+- **Remaining wrong suggestions**: for a blocked supplier, the model suggests
+  escalating rather than rejecting (8 of 8); with a single-source justification,
+  it still asks for three quotes (4 of 4), which the new check now marks as
+  contradicting the rule.
+- **Screen**: the phrasings outside its patterns are not flagged (4 of 4 on both
+  sets). On the development set, the model suggested approving one of them
+  (E127); on the held-out set, none. The route never depends on the model.
+- **Labels**: the citation labels were revised once, after the first run, to
   let a recommendation cite the policy of a rule it complies with; the reason
-  and the effect (208/281 then 231/281 on that run) are written in
+  and the effect are written in
   [`acceptable_passages.yaml`](../data/evaluation/acceptable_passages.yaml).
 
 ### What would come next
 
-A prompt that forbids requirements absent from the passages and the rule
-results, and a check in code that flags a recommendation contradicting a passed
-rule, measured on a **new** labelled set: this set has now been read, and a
-prompt tuned on it would be judged on the cases it was tuned for. A larger
-model than the free plan allows is the other lever.
+Restricting each finding's citations to its rule's policy in code would reach
+the citation target by construction, at the cost of the model's ability to add
+a relevant passage; it would need its own justification, not the score. A
+larger model than the free plan allows is the other lever.
 
 ## The held-out set
 
