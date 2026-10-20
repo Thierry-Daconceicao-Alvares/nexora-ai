@@ -1,6 +1,6 @@
 # How NEXORA AI is evaluated
 
-The product specification sets ten acceptance criteria. They are measured on a
+The [product definition](product.md) sets ten acceptance criteria. They are measured on a
 labelled set of synthetic requests, by running every request through the whole
 application, exactly as a client would, and comparing what comes out with the
 labels.

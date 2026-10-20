@@ -12,6 +12,8 @@
 
 NEXORA AI is an engineering project built around a real business problem: procurement teams spend their time on checks a machine can do (missing fields, duplicates, prices far from the usual, amounts above an approval threshold, unknown suppliers, missing quotes) and rarely write down why a request was approved. It runs on synthetic data for **Nexora Industries, a fictional industrial company**; the purchasing policies it applies are the synthetic documents of [Enterprise AI Knowledge Assistant](https://github.com/Thierry-Daconceicao-Alvares/enterprise-ai-knowledge-assistant). It is not used by a real company, and every figure it reports comes from its test environment.
 
+**Documentation:** [product definition](docs/product.md) · [architecture](docs/architecture.md) · [evaluation](docs/evaluation.md) · [live check](docs/live-check.md) · [n8n workflows](n8n/README.md)
+
 ## What works today
 
 | Step | What happens | Where |
@@ -25,7 +27,7 @@ NEXORA AI is an engineering project built around a real business problem: procur
 | Routing | A category buyer (reviewer) below €50,000; the Head of Procurement (approver) from €50,000 or when a rule or the screen raises a high or critical finding. The AI analysis never changes the route | [`services/rules.py`](src/nexora/services/rules.py) |
 | Review decisions | The category buyer approves, rejects, asks for information or escalates; the Head of Procurement decides on requests routed or escalated to her. A reason is always required, and each decision is stored with the evidence the decider had (findings, AI recommendation and its verification, cited passages) | [`services/review.py`](src/nexora/services/review.py), [`domain/workflow.py`](src/nexora/domain/workflow.py) |
 | Information requested | The requester completes the request (`PUT /requests/{id}`): a new version, and every check, the screen and the analysis run again | [`services/intake.py`](src/nexora/services/intake.py) |
-| Audit trail | Every step and every decision (who, when, what, why, on which version, with which evidence) appended to an event log, which n8n will read; no token, secret, prompt or request text is stored in it | [`services/audit.py`](src/nexora/services/audit.py) |
+| Audit trail | Every step and every decision (who, when, what, why, on which version, with which evidence) appended to an event log, from which n8n reads the notifications through `/integration/outbox`; no token, secret, prompt or request text is stored in it | [`services/audit.py`](src/nexora/services/audit.py) |
 | Permissions | Checked in the services: only requesters and the intake service submit; requesters see only their own requests; only the role a request waits for decides, never on its own request, once per transition (compare-and-set) and on the version it saw | [`services/authorization.py`](src/nexora/services/authorization.py), [`services/review.py`](src/nexora/services/review.py) |
 | Interface | Streamlit: the requester's requests and form, the buyer's and the approver's queue ordered by the most serious finding, the review screen with the decision panel, a dashboard, the audit log. It only calls the API, so it has the permissions of any client | [`app/`](app) |
 | Dashboard | Queue, oldest wait, findings by rule, decisions, median time to a decision, AI verification and estimated cost, all computed by the API from the stored data | [`services/metrics.py`](src/nexora/services/metrics.py) |
@@ -47,7 +49,9 @@ The model is given three labelled blocks: the rule results (facts it must not co
 | Every figure (amount, threshold, percentage) appears in the input; counts up to 10 are allowed | The analysis is marked `unverified` and the figure is listed |
 | Every quotation appears in the input | The analysis is marked `unverified` and the quotation is listed |
 | The recommendation does not approve against a high or critical finding | Replaced by `escalate`, marked `unverified` |
-| The recommendation rests on at least one valid citation | Replaced by `request_info` (insufficient evidence) |
+| The recommendation rests on at least one valid citation | Replaced by `request_info` (insufficient evidence), marked `unverified` |
+| A statement says that quotes, sourcing evidence, a CapEx approval or the supplier status is missing while that rule passed | The analysis is marked `unverified` and the statement is listed |
+| The suggested spend category is one of Nexora's categories | The category is removed (`corrected`) |
 
 The reviewer sees the verification status, the list of issues and the cited passages in full. The prompt is not stored, only its version (`analysis-v4`); the model, tokens, latency and estimated cost of each call are.
 
@@ -149,15 +153,15 @@ CI also starts the whole Docker Compose stack and runs [`scripts/e2e_n8n.py`](sc
 
 | Phase | Content | Status |
 |---|---|---|
-| 1. Product definition | Users, scope, acceptance criteria, risks | Done |
-| 2. Architecture | Components, states, data model, API, security boundaries | Done |
+| 1. Product definition | [Users, scope, acceptance criteria, risks](docs/product.md) | Done |
+| 2. Architecture | [Components, states, data model, API, security boundaries](docs/architecture.md) | Done |
 | 3. Vertical slice | Intake, validation, rules, storage, routing, audit, tests | Done |
 | 4. AI and retrieval | Structured analysis with cited policies, insufficient-evidence handling, injection tests | Done |
 | 5. Approvals and audit | Review decisions, server-side authorisation, migrations | Done |
 | 6. Interface and n8n | Dashboard, review screens, email intake, notifications, reminders | Done |
 | 7. Evaluation | Labelled scenarios, baselines, latency and cost | Done |
 | 8. Deployment | [Public demo](https://nexora-procurement.streamlit.app), setup from a clean clone | Done |
-| 9. Launch | Screenshots, video | **Done** |
+| 9. Launch | Screenshots, video | Done |
 
 ## License
 
