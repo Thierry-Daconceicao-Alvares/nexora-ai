@@ -1,4 +1,4 @@
-# Local stack. Phase 3: the API and PostgreSQL. The interface, n8n and Mailpit
+# Local stack. Phases 3-4: the API and PostgreSQL. The interface, n8n and Mailpit
 # are added in later phases.
 services:
   db:
@@ -19,6 +19,8 @@ services:
     build: .
     environment:
       NEXORA_DATABASE_URL: postgresql+psycopg://nexora:${POSTGRES_PASSWORD:-nexora-local}@db:5432/nexora
+      # Empty: the scripted stand-in analyses the requests. Set it in .env to use Gemini.
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     ports:
       - "8000:8000"
     depends_on:

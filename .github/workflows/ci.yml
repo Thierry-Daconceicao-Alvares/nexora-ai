@@ -37,7 +37,7 @@ jobs:
       - name: Tests on PostgreSQL
         env:
           NEXORA_TEST_DATABASE_URL: postgresql+psycopg://nexora:ci-only@localhost:5432/nexora_test
-        run: pytest tests/integration
+        run: pytest tests/integration tests/security
 
   docker:
     name: Docker Compose stack starts and answers
@@ -51,7 +51,7 @@ jobs:
           curl -fsS -X POST http://localhost:8000/requests \
             -H "Authorization: Bearer demo-sophie" -H "Content-Type: application/json" \
             -d '{"external_ref":"PR-2026-00001","department":"Maintenance","supplier_id":"SUP-0002","item_category":"spare_parts","item_code":"MRO-BRG-6205","description":"Ball bearings 6205-2RS for conveyor line 3","quantity":"20","unit_price":"8.40","currency":"EUR","justification":"Preventive maintenance of conveyor line 3","delivery_date":"2099-01-15","attachments":[{"kind":"quote","file_name":"quote.pdf"}]}' \
-            | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['status']=='awaiting_review', d; print(d['status'], d['route'])"
+            | python3 -c "import json,sys; d=json.load(sys.stdin); a=d['analysis']; assert d['status']=='awaiting_review', d; assert a['status']=='completed' and a['verification']=='verified', a; print(d['status'], d['route'], a['provider'], a['output']['recommendation']['action'])"
       - if: failure()
         run: docker compose logs
       - run: docker compose down -v

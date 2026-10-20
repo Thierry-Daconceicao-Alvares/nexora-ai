@@ -1,7 +1,9 @@
 """Intake: from a submitted payload to a stored, checked and routed request.
 
-Phase 3 runs validation and the business rules; the AI analysis is added in
-Phase 4, between the rules and the routing.
+Order of the steps: validation, business rules, screening of the free text,
+retrieval of the policy passages, AI analysis (one model call, verified in
+code), routing. The analysis is advice: the route depends on the amount and on
+the rule and screening results only.
 """
 
 from __future__ import annotations
@@ -18,12 +20,16 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from nexora.db.models import CheckRow, RequestRow
+from nexora.db.models import AnalysisRow, CheckRow, CitationRow, RequestRow
 from nexora.db.repository import DatabaseFacts, known_categories
 from nexora.domain.models import CheckResult, Status, User
 from nexora.domain.rules_config import RulesConfig
-from nexora.services import audit, rules
+from nexora.domain.schemas import PurchaseRequestIn
+from nexora.llm.base import LLMProvider
+from nexora.services import audit, rules, screening
+from nexora.services.analysis import AnalysisRecord, analyse
 from nexora.services.authorization import require_submit
+from nexora.services.retrieval import KnowledgeBase, retrieve
 from nexora.services.validation import validate
 
 
@@ -54,6 +60,8 @@ def submit(
     rule_set: RulesConfig,
     now: datetime,
     idempotency_key: str | None = None,
+    provider: LLMProvider | None = None,
+    knowledge_base: KnowledgeBase | None = None,
 ) -> IntakeResult:
     require_submit(actor)
     digest = payload_hash(payload)
@@ -147,11 +155,102 @@ def submit(
         highest_severity=request.highest_severity,
     )
 
+    screen = screening.screen(data)
+    _store_checks(session, request, [screen], rule_set.version)
+    if screen.outcome.value != "pass":
+        audit.record(
+            session,
+            "screening.flagged",
+            at=now,
+            request_id=request.id,
+            fields=sorted({m["field"] for m in screen.evidence["matches"]}),
+        )
+    checked = [*results, screen]
+    request.highest_severity = rules.highest_severity(checked).value
+
+    if provider is not None and knowledge_base is not None:
+        record = _analyse(provider, knowledge_base, data, request, checked)
+        _store_analysis(session, request, record, now)
+        _move(session, request, Status.ANALYSED, now, None)
+
     request.route = (
-        "approver" if rules.needs_approver(rule_input, results, rule_set) else "reviewer"
+        "approver" if rules.needs_approver(rule_input, checked, rule_set) else "reviewer"
     )
     _move(session, request, Status.AWAITING_REVIEW, now, None, route=request.route)
-    return IntakeResult(request=request, checks=report.checks + results)
+    return IntakeResult(request=request, checks=report.checks + checked)
+
+
+def _analyse(
+    provider: LLMProvider,
+    kb: KnowledgeBase,
+    data: PurchaseRequestIn,
+    request: RequestRow,
+    checked: list[CheckResult],
+) -> AnalysisRecord:
+    flagged = [r for r in checked if r.outcome.value != "pass"]
+    anchors = [(r.rule_id, r.policy_ref) for r in flagged]
+    anchors += [(r.rule_id, r.policy_ref) for r in checked if r.rule_id == "approval_band"]
+    query = " ".join([data.description, data.justification, *(r.message for r in flagged)])
+    hits = retrieve(kb, query, anchors)
+    view = data.model_dump(mode="json")
+    view["amount"] = str(request.amount)
+    view["amount_eur"] = str(request.amount_eur)
+    return analyse(provider, view, checked, hits)
+
+
+def _store_analysis(
+    session: Session, request: RequestRow, record: AnalysisRecord, now: datetime
+) -> None:
+    passages = {h.passage.id: h.passage for h in record.hits}
+    row = AnalysisRow(
+        request_id=request.id,
+        version=request.version,
+        status=record.status,
+        provider=record.provider,
+        model=record.model,
+        prompt_version=record.prompt_version,
+        verification=record.verification,
+        output=record.output,
+        issues=record.issues,
+        retrieved=[
+            {"passage_id": h.passage.id, "reason": h.reason, "score": h.score} for h in record.hits
+        ],
+        attempts=record.attempts,
+        latency_ms=record.latency_ms,
+        input_tokens=record.input_tokens,
+        output_tokens=record.output_tokens,
+        estimated_cost_usd=record.estimated_cost_usd,
+        error=record.error,
+        created_at=now,
+        citations=[
+            CitationRow(
+                passage_id=pid,
+                document=f"{passages[pid].doc_id} {passages[pid].doc_title}",
+                section=f"§{passages[pid].section} {passages[pid].section_title}",
+                passage_hash=passages[pid].hash,
+            )
+            for pid in record.cited_ids
+        ],
+    )
+    session.add(row)
+    audit.record(
+        session,
+        f"analysis.{record.status}",
+        at=now,
+        request_id=request.id,
+        provider=record.provider,
+        model=record.model,
+        prompt_version=record.prompt_version,
+        verification=record.verification,
+        issues=sorted({i["code"] for i in record.issues}),
+        citations=record.cited_ids,
+        recommendation=(record.output or {}).get("recommendation", {}).get("action"),
+        attempts=record.attempts,
+        input_tokens=record.input_tokens,
+        output_tokens=record.output_tokens,
+        estimated_cost_usd=record.estimated_cost_usd,
+        error=record.error,
+    )
 
 
 def _store_checks(

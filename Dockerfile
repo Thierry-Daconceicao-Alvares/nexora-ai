@@ -19,7 +19,8 @@ USER nexora
 
 ENV NEXORA_RULES_PATH=/app/config/rules.yaml \
     NEXORA_USERS_PATH=/app/config/demo_users.yaml \
-    NEXORA_SYNTHETIC_DIR=/app/data/synthetic
+    NEXORA_SYNTHETIC_DIR=/app/data/synthetic \
+    NEXORA_KNOWLEDGE_BASE_DIR=/app/data/knowledge_base
 
 EXPOSE 8000
 HEALTHCHECK --interval=10s --timeout=3s --retries=5 \

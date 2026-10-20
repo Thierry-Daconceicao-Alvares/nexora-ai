@@ -37,6 +37,8 @@ def test_valid_request_is_checked_stored_and_routed(client):
         ("request.submitted", None),
         ("request.status_changed", "validated"),
         ("rules.evaluated", None),
+        ("analysis.completed", None),
+        ("request.status_changed", "analysed"),
         ("request.status_changed", "awaiting_review"),
     ]
 
@@ -120,9 +122,9 @@ def test_event_feed_is_for_the_integration_service_only(client):
     client.post("/requests", json=valid_payload(), headers=auth("sophie"))
     assert client.get("/events", headers=auth("karim")).status_code == 403
     feed = client.get("/events", headers=auth("intake")).json()
-    assert len(feed) == 4
+    assert len(feed) == 6
     later = client.get(f"/events?after={feed[1]['id']}", headers=auth("intake")).json()
-    assert [e["id"] for e in later] == [feed[2]["id"], feed[3]["id"]]
+    assert [e["id"] for e in later] == [e["id"] for e in feed[2:]]
 
 
 def test_audit_never_contains_tokens(client):
@@ -138,3 +140,28 @@ def test_other_currency_is_converted(client):
     assert body["amount_eur"] == 167.99  # 20 x 9.13 USD x 0.92
     price = next(c for c in body["checks"] if c["rule_id"] == "price_deviation")
     assert price["outcome"] == "pass"
+
+
+def test_the_analysis_cites_the_policies_behind_the_findings(client):
+    payload = valid_payload(
+        external_ref="PR-2026-00003",
+        supplier_id="SUP-0012",
+        quantity="1",
+        unit_price="12000",
+        item_code=None,
+    )
+    created = client.post("/requests", json=payload, headers=auth("sophie")).json()
+    analysis = client.get(f"/requests/{created['id']}", headers=auth("karim")).json()["analysis"]
+    assert analysis["status"] == "completed"
+    assert analysis["provider"] == "scripted"
+    assert analysis["verification"] == "verified"
+    assert [c["passage_id"] for c in analysis["citations"]] == ["NX-PUR-003 §1", "NX-PUR-001 §5"]
+    assert "vendor master" in analysis["citations"][0]["text"]
+    assert analysis["output"]["recommendation"]["action"] == "reject"
+    retrieved = {r["passage_id"]: r["reason"] for r in analysis["retrieved"]}
+    assert retrieved["NX-PUR-002 §2"] == "rule:approval_band"
+
+
+def test_health_names_the_ai_provider(client):
+    body = client.get("/health").json()
+    assert (body["ai_provider"], body["ai_model"]) == ("scripted", "scripted-v1")

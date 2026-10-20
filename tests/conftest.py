@@ -60,11 +60,15 @@ def settings(tmp_path: Path) -> Settings:
     PostgreSQL (as CI does), on an emptied schema."""
     url = os.environ.get("NEXORA_TEST_DATABASE_URL")
     if not url:
-        return Settings(database_url=f"sqlite:///{tmp_path / 'test.db'}")
+        return Settings(
+            database_url=f"sqlite:///{tmp_path / 'test.db'}",
+            llm_provider="scripted",
+            gemini_api_key=None,
+        )
     engine = make_engine(url)
     Base.metadata.drop_all(engine)
     engine.dispose()
-    return Settings(database_url=url)
+    return Settings(database_url=url, llm_provider="scripted", gemini_api_key=None)
 
 
 @pytest.fixture
@@ -76,6 +80,16 @@ def clock() -> dict[str, datetime]:
 def client(settings: Settings, clock: dict[str, datetime]) -> TestClient:
     app = create_app(settings, clock=lambda: clock["now"])
     return TestClient(app)
+
+
+@pytest.fixture
+def client_with(settings: Settings, clock: dict[str, datetime]):
+    """A client whose AI analysis is done by the given provider."""
+
+    def make(provider) -> TestClient:  # noqa: ANN001
+        return TestClient(create_app(settings, clock=lambda: clock["now"], provider=provider))
+
+    return make
 
 
 def auth(user: str) -> dict[str, str]:

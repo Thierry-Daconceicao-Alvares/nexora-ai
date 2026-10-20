@@ -7,7 +7,18 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import JSON, Date, DateTime, ForeignKey, Index, Numeric, String, Text
+from sqlalchemy import (
+    JSON,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -78,6 +89,10 @@ class RequestRow(Base):
         back_populates="request", order_by="CheckRow.id", cascade="all, delete-orphan"
     )
 
+    analyses: Mapped[list[AnalysisRow]] = relationship(
+        back_populates="request", order_by="AnalysisRow.id", cascade="all, delete-orphan"
+    )
+
     __table_args__ = (Index("ix_requests_requester_created", "requester_id", "created_at"),)
 
 
@@ -98,6 +113,52 @@ class CheckRow(Base):
     evidence: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
     request: Mapped[RequestRow] = relationship(back_populates="checks")
+
+
+class AnalysisRow(Base):
+    """One AI analysis of one version of a request. The prompt text is not
+    stored, only its version; the output is stored after verification."""
+
+    __tablename__ = "ai_analyses"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    request_id: Mapped[str] = mapped_column(ForeignKey("purchase_requests.id"), index=True)
+    version: Mapped[int]
+    status: Mapped[str] = mapped_column(String(20))  # completed, unavailable
+    provider: Mapped[str] = mapped_column(String(20))
+    model: Mapped[str] = mapped_column(String(80))
+    prompt_version: Mapped[str] = mapped_column(String(30))
+    verification: Mapped[str | None] = mapped_column(String(20))
+    output: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    issues: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    retrieved: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    latency_ms: Mapped[float] = mapped_column(Float, default=0.0)
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    estimated_cost_usd: Mapped[float | None] = mapped_column(Float)
+    error: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    request: Mapped[RequestRow] = relationship(back_populates="analyses")
+    citations: Mapped[list[CitationRow]] = relationship(
+        back_populates="analysis", order_by="CitationRow.id", cascade="all, delete-orphan"
+    )
+
+
+class CitationRow(Base):
+    """A policy passage that the verified analysis relies on."""
+
+    __tablename__ = "citations"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    analysis_id: Mapped[int] = mapped_column(ForeignKey("ai_analyses.id"), index=True)
+    passage_id: Mapped[str] = mapped_column(String(40))  # "NX-PUR-001 §5"
+    document: Mapped[str] = mapped_column(String(200))
+    section: Mapped[str] = mapped_column(String(200))
+    passage_hash: Mapped[str] = mapped_column(String(16))
+
+    analysis: Mapped[AnalysisRow] = relationship(back_populates="citations")
 
 
 class AuditEventRow(Base):

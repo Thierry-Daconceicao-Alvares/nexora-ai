@@ -1,0 +1,27 @@
+"""Estimated cost of a model call.
+
+Gemini API paid-tier list prices in US dollars per million tokens, checked on
+the date below on https://ai.google.dev/gemini-api/docs/pricing. They change and
+must be checked again before relying on them. The free tier costs nothing but
+is rate limited.
+"""
+
+from __future__ import annotations
+
+PRICES_CHECKED_ON = "2026-10-18"
+
+# model -> (input, output) in USD per million tokens
+PRICES: dict[str, tuple[float, float]] = {
+    "gemini-3.5-flash-lite": (0.30, 2.50),
+    # Introductory price until 31 December 2026.
+    "gemini-3.8-flash": (0.75, 3.75),
+}
+
+
+def estimate_cost_usd(model: str, input_tokens: int, output_tokens: int) -> float | None:
+    """None for a model without a known price (including the scripted provider)."""
+    for name in sorted(PRICES, key=len, reverse=True):
+        if model == name or model.startswith(f"{name}-"):
+            price_in, price_out = PRICES[name]
+            return round((input_tokens * price_in + output_tokens * price_out) / 1e6, 6)
+    return None

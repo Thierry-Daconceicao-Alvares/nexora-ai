@@ -26,8 +26,10 @@ from nexora.db.session import (
 )
 from nexora.domain.models import Role, User
 from nexora.domain.rules_config import load_rules
+from nexora.llm import LLMProvider, build_provider
 from nexora.services import intake
 from nexora.services.authorization import Forbidden, can_read
+from nexora.services.retrieval import load_knowledge_base
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -60,6 +62,7 @@ class RateLimiter:
 def create_app(
     settings: Settings | None = None,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    provider: LLMProvider | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     engine = make_engine(settings.database_url)
@@ -70,10 +73,12 @@ def create_app(
     rule_set = load_rules(settings.rules_path)
     users = _load_users(settings)
     limiter = RateLimiter(settings.rate_limit_per_minute)
+    provider = provider or build_provider(settings)
+    knowledge_base = load_knowledge_base(settings.knowledge_base_dir)
 
     app = FastAPI(
         title="NEXORA AI",
-        version="0.1.0",
+        version="0.2.0",
         description=(
             "AI-assisted review of purchase requests for Nexora Industries, a fictional "
             "company. Synthetic data; demonstration bearer tokens are listed in "
@@ -113,7 +118,13 @@ def create_app(
     @app.get("/health", response_model=out.Health, tags=["system"])
     def health(session: SessionDep) -> out.Health:
         session.execute(text("SELECT 1"))
-        return out.Health(status="ok", database="ok", rule_set_version=rule_set.version)
+        return out.Health(
+            status="ok",
+            database="ok",
+            rule_set_version=rule_set.version,
+            ai_provider=provider.name,
+            ai_model=provider.model,
+        )
 
     @app.post(
         "/requests",
@@ -133,7 +144,16 @@ def create_app(
         idempotency_key: Annotated[str | None, Header(max_length=100)] = None,
     ) -> Any:
         limiter.check(actor.id)
-        result = intake.submit(session, actor, payload, rule_set, clock(), idempotency_key)
+        result = intake.submit(
+            session,
+            actor,
+            payload,
+            rule_set,
+            clock(),
+            idempotency_key,
+            provider=provider,
+            knowledge_base=knowledge_base,
+        )
         if not result.accepted:
             session.commit()  # keep the audit event of the rejection
             body = out.ValidationFailure(
@@ -142,7 +162,7 @@ def create_app(
                 errors=[out.Check.of(c) for c in result.checks if c.outcome.value == "fail"],
             )
             return JSONResponse(status_code=422, content={"detail": body.model_dump(mode="json")})
-        detail = out.RequestDetail.of(result.request)
+        detail = out.RequestDetail.of(result.request, knowledge_base)
         if result.replayed:
             return JSONResponse(status_code=200, content=detail.model_dump(mode="json"))
         return detail
@@ -167,7 +187,7 @@ def create_app(
         if row is None or not can_read(actor, row.requester_id):
             # Same answer for "absent" and "not yours": no information leak.
             raise HTTPException(404, detail={"code": "not_found", "message": "No such request."})
-        detail = out.RequestDetail.of(row)
+        detail = out.RequestDetail.of(row, knowledge_base)
         detail.audit = [
             out.AuditEvent.of(e)
             for e in session.scalars(
