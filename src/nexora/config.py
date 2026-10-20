@@ -30,9 +30,10 @@ class Settings(BaseSettings):
     mistral_api_key: SecretStr | None = Field(
         default=None, validation_alias=AliasChoices("NEXORA_MISTRAL_API_KEY", "MISTRAL_API_KEY")
     )
-    # The alias follows Mistral's latest Small model; the model that actually
-    # answered is stored with each analysis.
-    mistral_model: str = "mistral-small-latest"
+    # Ministral 14B is served on Mistral's free plan (Mistral Small and Large
+    # were not, when tested on 2026-10-20). The alias follows the latest
+    # version; the model that actually answered is stored with each analysis.
+    mistral_model: str = "ministral-14b-latest"
     gemini_api_key: SecretStr | None = Field(
         default=None, validation_alias=AliasChoices("NEXORA_GEMINI_API_KEY", "GEMINI_API_KEY")
     )

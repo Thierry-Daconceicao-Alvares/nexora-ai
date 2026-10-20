@@ -131,7 +131,7 @@ def test_without_a_key_the_scripted_provider_is_used():
 
 def test_mistral_comes_first_when_its_key_is_set():
     provider = build_provider(settings(mistral_api_key="m-key", gemini_api_key="g-key"))
-    assert (provider.name, provider.model) == ("mistral", "mistral-small-latest")
+    assert (provider.name, provider.model) == ("mistral", "ministral-14b-latest")
 
 
 def test_gemini_is_used_when_only_its_key_is_set():
