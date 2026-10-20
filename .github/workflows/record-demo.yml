@@ -32,7 +32,7 @@ jobs:
         run: |
           if [ -n "$MODEL" ]; then export NEXORA_MISTRAL_MODEL="$MODEL"; fi
           python scripts/seed_demo.py --database sqlite:///record.db --record
-      - name: Replay them: the demo must load without a model
+      - name: "Replay them: the demo must load without a model"
         run: |
           python scripts/seed_demo.py --database sqlite:///replay.db
           python - <<'PY'
