@@ -2,7 +2,9 @@
 
 **AI-assisted review of purchase requests: deterministic checks, cited explanations, human decisions and a full audit trail.**
 
-> **Status: work in progress (Phase 7 of 9).** Requests arrive by form, CSV file, API or email; they are validated, checked against the purchasing rules, screened, analysed by a language model with cited policies, verified in code, routed, and decided in a review interface by the people whose role allows it; n8n handles the emails. It is evaluated on a labelled set, failures included. The public demo and the launch come next. Nothing below describes a feature that is not implemented and tested.
+> **Status: Phase 8 of 9.** Requests arrive by form, CSV file, API or email; they are validated, checked against the purchasing rules, screened, analysed by a language model with cited policies, verified in code, routed, and decided in a review interface by the people whose role allows it; n8n handles the emails. It is evaluated on a labelled set, failures included. Nothing below describes a feature that is not implemented and tested.
+
+**[Try the public demo](https://nexora-procurement.streamlit.app)**: the interface with its API running inside it, on synthetic requests. Choose who you are in the sidebar. The AI analyses shown there were recorded from Mistral (`ministral-14b-latest`) by a [workflow](.github/workflows/record-demo.yml) and are replayed; a request you submit yourself is analysed by the scripted stand-in, since the demo holds no API key. Every visitor shares the same demo database, which starts again from the demo requests when the app restarts.
 
 ![The review screen: findings, AI analysis, decision panel](docs/images/review.png)
 
@@ -45,7 +47,7 @@ The model is given three labelled blocks: the rule results (facts it must not co
 | The recommendation does not approve against a high or critical finding | Replaced by `escalate`, marked `unverified` |
 | The recommendation rests on at least one valid citation | Replaced by `request_info` (insufficient evidence) |
 
-The reviewer sees the verification status, the list of issues and the cited passages in full. The prompt is not stored, only its version (`analysis-v1`); the model, tokens, latency and estimated cost of each call are.
+The reviewer sees the verification status, the list of issues and the cited passages in full. The prompt is not stored, only its version (`analysis-v4`); the model, tokens, latency and estimated cost of each call are.
 
 **Providers.** With a `MISTRAL_API_KEY`, Mistral (`ministral-14b-latest`, served on Mistral's free plan) does the analysis; Gemini is also supported (`GEMINI_API_KEY`). Both sit behind one interface, with a strict JSON schema, a timeout and bounded retries. Without a key, a **scripted stand-in** fills the same JSON from the rule results with templates, so the whole pipeline runs with no account and no network; it is not a language model, and its analyses are labelled `provider: scripted`. The tests use the scripted provider and fake models (an obedient model that follows an injection, a model that is down, answers outside the schema); the Mistral and Gemini providers are tested against mock HTTP and SDK clients.
 
@@ -102,12 +104,11 @@ docker compose up --build
 
 To send a request by email, see [n8n/README.md](n8n/README.md). To use a real model instead of the scripted stand-in, put `MISTRAL_API_KEY=...` (or `GEMINI_API_KEY=...`) in a `.env` file before starting. To fill the database with a realistic set of requests and decisions: `docker compose exec api python scripts/seed_demo.py --database "$NEXORA_DATABASE_URL"`.
 
-Without Docker (Python 3.12, SQLite), the interface alone, with the API running inside it:
+Without Docker (Python 3.12, SQLite), the interface alone, with the API running inside it, exactly as the public demo runs (the demo requests are created on the first start):
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[ui,dev]"
-python scripts/seed_demo.py --database sqlite:///nexora.db   # optional demo data
 streamlit run app/streamlit_app.py
 ```
 
@@ -152,8 +153,8 @@ CI also starts the whole Docker Compose stack and runs [`scripts/e2e_n8n.py`](sc
 | 4. AI and retrieval | Structured analysis with cited policies, insufficient-evidence handling, injection tests | Done |
 | 5. Approvals and audit | Review decisions, server-side authorisation, migrations | Done |
 | 6. Interface and n8n | Dashboard, review screens, email intake, notifications, reminders | Done |
-| 7. Evaluation | Labelled scenarios, baselines, latency and cost | **Done** |
-| 8. Deployment | Public demo, setup from a clean clone | Next |
+| 7. Evaluation | Labelled scenarios, baselines, latency and cost | Done |
+| 8. Deployment | [Public demo](https://nexora-procurement.streamlit.app), setup from a clean clone | **Done** |
 | 9. Launch | Screenshots, video | Planned |
 
 ## License
