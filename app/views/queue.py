@@ -63,8 +63,9 @@ def render() -> None:
         )
         return
     st.markdown(
-        f'<p class="nx-meta"><b>{len(rows)}</b> requests wait for your decision, the most '
-        "serious findings first. Select a row to open it.</p>",
+        f'<p class="nx-meta"><b>{len(rows)}</b> '
+        + ("request waits" if len(rows) == 1 else "requests wait")
+        + " for your decision, the most serious findings first. Select a row to open it.</p>",
         unsafe_allow_html=True,
     )
     _table(rows, "queue", waiting_column=True)

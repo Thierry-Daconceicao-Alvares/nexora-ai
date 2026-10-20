@@ -137,7 +137,8 @@ def render() -> None:
     cols[3].metric(
         "AI cost (estimated)",
         f"${ai['estimated_cost_usd']:.4f}",
-        help=f"{ai['analyses']} analyses, {ai['tokens']:,} tokens, at list prices. "
+        help=f"{ai['analyses']} analys{'is' if ai['analyses'] == 1 else 'es'}, "
+        f"{ai['tokens']:,} tokens, at list prices. "
         "The scripted stand-in costs nothing.",
         border=True,
     )

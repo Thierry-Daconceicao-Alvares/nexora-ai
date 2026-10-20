@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 
 import state
+import ui
 from client import ApiError
 
 TEMPLATE = (
@@ -46,7 +47,7 @@ def render() -> None:
         return
     st.success(
         f"{result['created']} submitted, {result['already_submitted']} already submitted, "
-        f"{result['refused']} refused, out of {result['rows']} rows."
+        f"{result['refused']} refused, out of {ui.plural(result['rows'], 'row')}."
     )
     st.dataframe(
         pd.DataFrame(

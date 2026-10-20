@@ -235,7 +235,7 @@ def _history(detail: dict, users: dict) -> None:
     created = f"<div>Submitted<small>{ui.when(detail['created_at'])}</small></div>"
     st.markdown(f'<div class="nx-timeline">{created}{"".join(lines)}</div>', unsafe_allow_html=True)
     if detail.get("audit"):
-        with st.expander(f"Audit trail ({len(detail['audit'])} events)"):
+        with st.expander(f"Audit trail ({ui.plural(len(detail['audit']), 'event')})"):
             for e in detail["audit"]:
                 who = name.get(e["actor_id"], "system") if e["actor_id"] else "system"
                 st.markdown(f"- {ui.when(e['created_at'])}, {who}: `{e['type']}`")
