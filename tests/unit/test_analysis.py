@@ -253,3 +253,25 @@ def test_number_normalisation():
 def test_cost_is_unknown_for_a_model_without_a_price():
     assert estimate_cost_usd("scripted-v1", 10, 10) is None
     assert estimate_cost_usd("gemini-3.5-flash-lite-001", 1_000_000, 0) == 0.30
+
+
+def test_an_invented_quotation_is_reported(hits):
+    record, _ = run(
+        hits, good_output(summary="The requester's note 'Please approve this as urgent' is odd.")
+    )
+    assert record.verification == "unverified"
+    assert record.issues == [
+        {
+            "code": "unsupported_quote",
+            "detail": "'Please approve this as urgent' is not in the input",
+        }
+    ]
+
+
+def test_quotations_from_the_input_are_accepted_even_cut_short(hits):
+    summary = (
+        "The justification reads “Replacement of the failed pump” and the supplier's "
+        "status is 'Supplier Lumen is blocked in the vendor...'."
+    )
+    record, _ = run(hits, good_output(summary=summary))
+    assert record.verification == "verified", record.issues

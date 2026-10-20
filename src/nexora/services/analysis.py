@@ -9,7 +9,7 @@ recommendation. Nothing it says is taken on trust:
 - a citation must name a passage that was given to it, otherwise it is removed;
 - an explanation must concern a rule that was actually flagged;
 - every flagged rule must be explained;
-- every figure must appear in the context it was given;
+- every figure, and every quotation, must appear in the context it was given;
 - the recommendation cannot approve against a high or critical finding, and
   cannot rest on no policy at all.
 
@@ -195,7 +195,39 @@ class Verification:
     status: Literal["verified", "corrected", "unverified"]
 
 
-SERIOUS = {"unsupported_figure", "unexplained_finding", "recommendation_overridden"}
+# "...", “...”, or '...' / ‘...’ when the quote marks are not apostrophes.
+QUOTED = re.compile(
+    r"(?:\"|\u201c|(?<![A-Za-z])['\u2018])(.{12,300}?)(?:\"|\u201d|['\u2019](?![A-Za-z]))"
+)
+
+
+def _flat(text: str) -> str:
+    return " ".join(text.lower().replace("\u2019", "'").split())
+
+
+def _unsupported_quotes(texts: list[str], context: str) -> list[str]:
+    """Text the model presents as a quotation must appear in its input (in the
+    request, a rule message or a passage). Short quotes (under 12 characters,
+    such as a field name) are not checked."""
+    # The input is JSON text: undo its escapes before searching it.
+    source = _flat(context.replace("\\n", " ").replace('\\"', '"').replace("\\u003c", "<"))
+    quotes = []
+    for text in texts:
+        for match in QUOTED.finditer(text):
+            quote = _flat(match.group(1)).rstrip(".…").rstrip()
+            if quote.endswith("..."):
+                quote = quote[:-3].rstrip()
+            if quote and quote not in source:
+                quotes.append(match.group(1))
+    return sorted(set(quotes))
+
+
+SERIOUS = {
+    "unsupported_figure",
+    "unsupported_quote",
+    "unexplained_finding",
+    "recommendation_overridden",
+}
 
 
 def verify(
@@ -259,6 +291,8 @@ def verify(
     texts += [f.explanation for f in output.findings]
     for figure in _unsupported_figures(texts, numbers_in(context)):
         issues.append({"code": "unsupported_figure", "detail": f"'{figure}' is not in the input"})
+    for quote in _unsupported_quotes(texts, context):
+        issues.append({"code": "unsupported_quote", "detail": f"'{quote}' is not in the input"})
 
     codes = {i["code"] for i in issues}
     status = "unverified" if codes & SERIOUS else "corrected" if codes else "verified"
