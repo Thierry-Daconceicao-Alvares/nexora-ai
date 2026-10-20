@@ -4,7 +4,7 @@
 
 > **Status: complete.** Requests arrive by form, CSV file, API or email; they are validated, checked against the purchasing rules, screened, analysed by a language model with cited policies, verified in code, routed, and decided in a review interface by the people whose role allows it; n8n handles the emails. It is evaluated on a labelled set, failures included. Nothing below describes a feature that is not implemented and tested.
 
-**[Try the public demo](https://nexora-procurement.streamlit.app)**: the interface with its API running inside it, on synthetic requests. Choose who you are in the sidebar. The AI analyses shown there were recorded from Mistral (`ministral-14b-latest`) by a [workflow](.github/workflows/record-demo.yml) and are replayed; a request you submit yourself is analysed by the scripted stand-in, since the demo holds no API key. Every visitor shares the same demo database, which starts again from the demo requests when the app restarts.
+**[Try the public demo](https://nexora-procurement.streamlit.app)**: the interface with its API running inside it, on synthetic requests. Choose who you are in the sidebar. The AI analyses shown there were recorded from Mistral (`ministral-14b-latest`) by a [workflow](.github/workflows/record-demo.yml) and are replayed; a request you submit yourself is analysed by the scripted stand-in, since the demo holds no API key. Every visitor shares the same demo database, which starts again from the demo requests when the app restarts. The public demo is the interface only: the emails handled by n8n need the full stack (`docker compose up`), shown [below](#the-email-side-n8n).
 
 ![A 70-second walkthrough: a request whose justification tries to instruct the AI, the findings, the verified analysis, the buyer's and the approver's decisions, the dashboard](docs/media/nexora-demo.gif)
 
@@ -90,6 +90,27 @@ info_requested     the requester               completes the request -> new vers
 ```
 
 Any other transition is refused with HTTP 409, a wrong role with 403. The AI analysis may recommend an action; only a person takes it.
+
+## The email side: n8n
+
+Four n8n workflows ([`n8n/`](n8n), imported and published when the stack starts; [details](n8n/README.md)) do the email work; the backend decides who is told what, n8n delivers. CI starts the full stack and checks them with real emails ([`scripts/e2e_n8n.py`](scripts/e2e_n8n.py)).
+
+| Workflow | Runs | Does |
+|---|---|---|
+| 1 - Email intake | every minute | Reads the emails sent to purchasing@nexora.example, submits each request on behalf of its sender, answers with the reference and who will review it, or sends the template back |
+| 2 - Notifications | every minute | Reads the API's outbox and emails the buyer (to review), the Head of Procurement (to approve) and the requester (information needed, approved, rejected) |
+| 3 - Reminders | working days, 08:15 | Reminds whoever a request has been waiting for, for more than 48 hours |
+| 4 - Weekly digest | Mondays, 07:45 | Sends the Head of Procurement the figures of the last 7 days |
+
+![The email intake workflow in n8n](docs/images/n8n-intake.png)
+
+| An emailed request, answered | Every email n8n sent, in the local mailbox |
+|---|---|
+| ![The answer to a request received by email](docs/images/email-reply.png) | ![Mailpit inbox](docs/images/mailbox.png) |
+
+![n8n runs, all successful](docs/images/n8n-executions.png)
+
+*Taken from the full stack after the end-to-end email scenario, by [`scripts/capture_n8n_media.py`](scripts/capture_n8n_media.py). Mailpit is a local mailbox: nothing leaves the machine.*
 
 ## Run it
 
