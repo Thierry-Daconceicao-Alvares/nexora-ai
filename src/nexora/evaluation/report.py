@@ -53,7 +53,7 @@ def write(run: Run, figures: dict[str, Any], out: Path, meta: dict[str, Any]) ->
         "",
         f"Run on {meta['date']}, commit `{meta['commit']}`, prompt `{meta['prompt_version']}`, "
         f"rule set `{meta['rule_set']}`, citation labels v{figures.get('labels_version', 1)}, "
-        f"{figures['requests']} labelled requests "
+        f"{figures['requests']} labelled requests of the {meta.get('dataset', 'development')} set "
         f"([data/evaluation](../../../data/evaluation)). Synthetic data: these figures describe "
         "the system on this test set, not on real requests. Fault injection (criterion 4) "
         "wraps the scripted stand-in, so that it measures the application's fallback "

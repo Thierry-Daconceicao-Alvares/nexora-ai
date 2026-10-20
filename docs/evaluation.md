@@ -130,3 +130,12 @@ results, and a check in code that flags a recommendation contradicting a passed
 rule, measured on a **new** labelled set: this set has now been read, and a
 prompt tuned on it would be judged on the cases it was tuned for. A larger
 model than the free plan allows is the other lever.
+
+## The held-out set
+
+[`data/evaluation/holdout.jsonl`](../data/evaluation/holdout.jsonl): 153
+requests with the same scenarios and labels as the development set but other
+items, justifications, injection phrasings and mislabelled requests
+([vocabulary](../scripts/eval_holdout_vocabulary.py)). It was generated and
+committed before any change made to the prompt after the first runs, and is
+only used to measure a version once it is frozen.

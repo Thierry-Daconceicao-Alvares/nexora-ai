@@ -26,6 +26,9 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--provider", choices=["scripted", "mistral", "gemini"], default="scripted")
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument(
+        "--holdout", action="store_true", help="the held-out set (data/evaluation/holdout.jsonl)"
+    )
     parser.add_argument("--limit", type=int, help="only the first N requests (a quick try)")
     parser.add_argument(
         "--pause",
@@ -38,7 +41,7 @@ def main() -> int:
 
     settings = Settings(llm_provider=args.provider)
     provider = build_provider(settings)
-    records = runner.load()
+    records = runner.load(runner.HOLDOUT if args.holdout else runner.DATASET)
     if args.limit:
         records = records[: args.limit]
     run = runner.evaluate(
@@ -61,6 +64,7 @@ def main() -> int:
         "prompt_version": PROMPT_VERSION,
         "rule_set": load_rules(settings.rules_path).version,
         "pause_s": args.pause,
+        "dataset": "held-out" if args.holdout else "development",
     }
     report.write(run, figures, args.out, meta)
     print()

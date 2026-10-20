@@ -21,6 +21,10 @@ on:
         description: Seconds between two requests (rate limits of free plans)
         type: string
         default: "1"
+      holdout:
+        description: Use the held-out set (data/evaluation/holdout.jsonl)
+        type: boolean
+        default: false
       publish:
         description: Commit the report to the repository
         type: boolean
@@ -47,6 +51,7 @@ jobs:
           PROVIDER: ${{ inputs.provider }}
           MODEL: ${{ inputs.model }}
           PAUSE: ${{ inputs.pause }}
+          HOLDOUT: ${{ inputs.holdout }}
         run: |
           set -o pipefail
           if [ -n "$MODEL" ]; then export NEXORA_MISTRAL_MODEL="$MODEL" NEXORA_GEMINI_MODEL="$MODEL"; fi
@@ -56,9 +61,11 @@ jobs:
           prompt=$(python -c "from nexora.services.analysis import PROMPT_VERSION as v; print(v.split('-')[-1])")
           folder="eval/results/$(date -u +%F)-$PROVIDER-$label-prompt-$prompt"
           [ "$PROVIDER" = "scripted" ] && folder="eval/results/$(date -u +%F)-scripted"
+          extra=""
+          if [ "$HOLDOUT" = "true" ]; then folder="$folder-holdout"; extra="--holdout"; fi
           if [ -e "$folder" ]; then folder="$folder-run-${{ github.run_id }}"; fi
           echo "FOLDER=$folder" >> "$GITHUB_ENV"
-          python scripts/evaluate.py --provider "$PROVIDER" --pause "$PAUSE" --out "$folder" 2>&1 | tee evaluate.log
+          python scripts/evaluate.py --provider "$PROVIDER" --pause "$PAUSE" $extra --out "$folder" 2>&1 | tee evaluate.log
       - if: always()
         run: |
           { cat "$FOLDER/report.md" 2>/dev/null || tail -50 evaluate.log; } >> "$GITHUB_STEP_SUMMARY"

@@ -33,6 +33,7 @@ from nexora.evaluation import baselines
 from nexora.llm.base import LLMError, LLMProvider, LLMResult
 
 DATASET = ROOT / "data" / "evaluation" / "requests.jsonl"
+HOLDOUT = ROOT / "data" / "evaluation" / "holdout.jsonl"
 PASSAGES = ROOT / "data" / "evaluation" / "acceptable_passages.yaml"
 TOKENS = {
     "sophie": "demo-sophie",
