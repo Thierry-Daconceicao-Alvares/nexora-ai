@@ -294,3 +294,33 @@ def test_the_model_is_given_todays_date(hits):
     prompt = build_user_prompt(REQUEST, RESULTS, hits, today=date(2026, 10, 20))
     assert '<context>\n{\n "today": "2026-10-20"\n}\n</context>' in prompt
     assert prompt.index("<context>") < prompt.index("<untrusted_request>")
+
+
+def test_a_statement_contradicting_a_passed_rule_is_reported(hits):
+    passed_sourcing = [
+        RESULTS[0],
+        RESULTS[1],
+        _rule(
+            "sourcing_evidence",
+            "pass",
+            "info",
+            "The sourcing evidence is attached.",
+            "NX-PUR-001 §5",
+        ),
+    ]
+    output = good_output()
+    output["findings"] = output["findings"][:1]
+    output["recommendation"]["rationale"] = "The request lacks the required three quotes."
+    record = analyse(Canned(output), REQUEST, passed_sourcing, hits)
+    assert record.verification == "unverified"
+    assert {
+        "code": "contradicts_rule",
+        "detail": "'lacks the required three quotes' contradicts the passed rule sourcing_evidence",
+    } in record.issues
+
+
+def test_the_same_statement_is_fine_when_the_rule_flagged(hits):
+    output = good_output()
+    output["recommendation"]["rationale"] = "The request lacks the required three quotes."
+    record, _ = run(hits, output)
+    assert "contradicts_rule" not in {i["code"] for i in record.issues}
