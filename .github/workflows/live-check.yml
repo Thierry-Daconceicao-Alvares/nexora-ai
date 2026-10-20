@@ -12,6 +12,10 @@ on:
         type: choice
         options: [mistral, gemini]
         default: mistral
+      model:
+        description: Model id (empty for the default of the provider)
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -31,8 +35,10 @@ jobs:
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PROVIDER: ${{ inputs.provider }}
+          MODEL: ${{ inputs.model }}
         run: |
           set -o pipefail
+          if [ -n "$MODEL" ]; then export NEXORA_MISTRAL_MODEL="$MODEL" NEXORA_GEMINI_MODEL="$MODEL"; fi
           key_name="$(echo "$PROVIDER" | tr a-z A-Z)_API_KEY"
           test -n "${!key_name}" || { echo "::error::Add the $key_name repository secret first."; exit 1; }
           python scripts/live_check.py --provider "$PROVIDER" --out live-check.json 2>&1 | tee live-check.txt
