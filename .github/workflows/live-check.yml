@@ -35,7 +35,7 @@ jobs:
           set -o pipefail
           key_name="$(echo "$PROVIDER" | tr a-z A-Z)_API_KEY"
           test -n "${!key_name}" || { echo "::error::Add the $key_name repository secret first."; exit 1; }
-          python scripts/live_check.py --provider "$PROVIDER" --out live-check.json | tee live-check.txt
+          python scripts/live_check.py --provider "$PROVIDER" --out live-check.json 2>&1 | tee live-check.txt
       - if: always()
         run: |
           { echo '```'; cat live-check.txt 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
