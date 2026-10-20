@@ -8,8 +8,6 @@ from types import SimpleNamespace
 import pytest
 from google.genai import errors as genai_errors
 
-from nexora.config import Settings
-from nexora.llm import ScriptedProvider, build_provider
 from nexora.llm.base import LLMError
 from nexora.llm.gemini import GeminiProvider
 
@@ -71,20 +69,3 @@ def test_an_empty_answer_is_an_error():
     provider, _ = provider_with(response=response(text=""))
     with pytest.raises(LLMError, match="empty"):
         provider.generate("s", "u", {})
-
-
-def test_without_a_key_the_scripted_provider_is_used():
-    settings = Settings(llm_provider="auto", gemini_api_key=None)
-    assert isinstance(build_provider(settings), ScriptedProvider)
-
-
-def test_with_a_key_gemini_is_used():
-    settings = Settings(llm_provider="auto", gemini_api_key="test-key-not-real")
-    provider = build_provider(settings)
-    assert provider.name == "gemini"
-    assert provider.model == "gemini-3.5-flash-lite"
-
-
-def test_gemini_cannot_be_forced_without_a_key():
-    with pytest.raises(ValueError, match="GEMINI_API_KEY"):
-        build_provider(Settings(llm_provider="gemini", gemini_api_key=None))

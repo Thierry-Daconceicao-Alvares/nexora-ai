@@ -1,11 +1,12 @@
-"""Live check of the AI analysis with Gemini on six scenario requests.
+"""Live check of the AI analysis on six scenario requests, with a real model.
 
-Needs GEMINI_API_KEY. Runs the full pipeline in-process on a temporary SQLite
-database, prints one line per scenario and writes the results to a JSON file.
+Needs MISTRAL_API_KEY (or GEMINI_API_KEY with --provider gemini). Runs the
+full pipeline in-process on a temporary SQLite database, prints one line per
+scenario and writes the results to a JSON file.
 It checks that the model answers in the schema, cites retrieved passages and
 passes verification; it is a smoke test, not the evaluation (Phase 7).
 
-    GEMINI_API_KEY=... python scripts/live_check.py --out live-check.json
+    MISTRAL_API_KEY=... python scripts/live_check.py --out live-check.json
 """
 
 from __future__ import annotations
@@ -78,7 +79,7 @@ SCENARIOS: list[tuple[str, dict]] = [
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", type=Path, default=Path("live-check.json"))
-    parser.add_argument("--provider", choices=["gemini", "scripted"], default="gemini")
+    parser.add_argument("--provider", choices=["mistral", "gemini", "scripted"], default="mistral")
     args = parser.parse_args()
 
     workdir = Path(tempfile.mkdtemp())

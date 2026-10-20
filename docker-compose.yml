@@ -19,7 +19,8 @@ services:
     build: .
     environment:
       NEXORA_DATABASE_URL: postgresql+psycopg://nexora:${POSTGRES_PASSWORD:-nexora-local}@db:5432/nexora
-      # Empty: the scripted stand-in analyses the requests. Set it in .env to use Gemini.
+      # No key: the scripted stand-in analyses the requests. Set one in .env to use a model.
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     ports:
       - "8000:8000"

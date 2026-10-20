@@ -1,10 +1,17 @@
-# Runs the AI analysis against the real Gemini API on six scenario requests.
-# Started manually (Actions > Live check with Gemini > Run workflow); needs the
-# GEMINI_API_KEY repository secret. Uses a few thousand tokens per run.
-name: Live check with Gemini
+# Runs the AI analysis against a real model on six scenario requests.
+# Started manually (Actions > Live check > Run workflow); needs the
+# MISTRAL_API_KEY (or GEMINI_API_KEY) repository secret. A run uses about
+# 20,000 tokens.
+name: Live check
 
 on:
   workflow_dispatch:
+    inputs:
+      provider:
+        description: Model provider
+        type: choice
+        options: [mistral, gemini]
+        default: mistral
 
 permissions:
   contents: read
@@ -19,12 +26,15 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -e ".[dev]"
-      - name: Six scenarios through the pipeline with Gemini
+      - name: Six scenarios through the pipeline
         env:
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PROVIDER: ${{ inputs.provider }}
         run: |
-          test -n "$GEMINI_API_KEY" || { echo "::error::Add the GEMINI_API_KEY repository secret first."; exit 1; }
-          python scripts/live_check.py --out live-check.json | tee live-check.txt
+          key_name="$(echo "$PROVIDER" | tr a-z A-Z)_API_KEY"
+          test -n "${!key_name}" || { echo "::error::Add the $key_name repository secret first."; exit 1; }
+          python scripts/live_check.py --provider "$PROVIDER" --out live-check.json | tee live-check.txt
       - if: always()
         run: |
           { echo '```'; cat live-check.txt 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

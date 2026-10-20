@@ -38,7 +38,7 @@ The model is given three labelled blocks: the rule results (facts it must not co
 
 The reviewer sees the verification status, the list of issues and the cited passages in full. The prompt is not stored, only its version (`analysis-v1`); the model, tokens, latency and estimated cost of each call are.
 
-**Providers.** With a `GEMINI_API_KEY`, Gemini (`gemini-3.5-flash-lite` by default) does the analysis. Without one, a **scripted stand-in** fills the same JSON from the rule results with templates, so the whole pipeline runs with no account and no network; it is not a language model, and its analyses are labelled `provider: scripted`. The tests use the scripted provider and fake models (an obedient model that follows an injection, a model that is down, answers outside the schema). The Gemini provider is tested against a stub client; the [live check workflow](.github/workflows/live-check.yml) runs six scenario requests against the real API.
+**Providers.** With a `MISTRAL_API_KEY`, Mistral (`mistral-small-latest`, a French provider) does the analysis; Gemini is also supported (`GEMINI_API_KEY`). Both sit behind one interface, with a strict JSON schema, a timeout and bounded retries. Without a key, a **scripted stand-in** fills the same JSON from the rule results with templates, so the whole pipeline runs with no account and no network; it is not a language model, and its analyses are labelled `provider: scripted`. The tests use the scripted provider and fake models (an obedient model that follows an injection, a model that is down, answers outside the schema); the Mistral and Gemini providers are tested against mock HTTP and SDK clients. The [live check workflow](.github/workflows/live-check.yml) runs six scenario requests against the real API.
 
 ## Run it
 
@@ -50,7 +50,7 @@ cd nexora-ai
 docker compose up --build
 ```
 
-Then open http://localhost:8000/docs, click **Authorize**, enter `demo-sophie` (a requester), and try `POST /requests`: the answer includes the rule results and the `analysis`. To use Gemini instead of the scripted stand-in, put `GEMINI_API_KEY=...` in a `.env` file before starting.
+Then open http://localhost:8000/docs, click **Authorize**, enter `demo-sophie` (a requester), and try `POST /requests`: the answer includes the rule results and the `analysis`. To use a real model instead of the scripted stand-in, put `MISTRAL_API_KEY=...` (or `GEMINI_API_KEY=...`) in a `.env` file before starting.
 
 Without Docker (Python 3.12, SQLite):
 
@@ -65,7 +65,7 @@ Demo tokens (not secrets, listed in [`config/demo_users.yaml`](config/demo_users
 ## Tests
 
 ```bash
-pytest          # 111 tests: validation, rules, screening, retrieval, verification, injection, API
+pytest          # 121 tests: validation, rules, screening, retrieval, verification, injection, API
 ruff check .
 ```
 
@@ -74,7 +74,7 @@ ruff check .
 - Retrieval is lexical (BM25) plus the sections the rules cite. On 36 short sections this finds the right passages in the tests; semantic search is not implemented.
 - The screen is a list of patterns. A reworded attack can pass it; it then reaches a model that has no tools and whose answer is verified, and it cannot change the route.
 - The figure check accepts any count up to 10 and does not check that a figure is used in the right place.
-- The model call runs inside the submission request (a few seconds with Gemini). A queue would be needed at volume.
+- The model call runs inside the submission request (a few seconds with a real model). A queue would be needed at volume.
 
 ## Roadmap
 

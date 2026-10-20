@@ -22,10 +22,17 @@ class Settings(BaseSettings):
     # Requests submitted per actor and minute before a 429 (basic protection).
     rate_limit_per_minute: int = 60
 
-    # AI analysis. "auto" uses Gemini when a key is set, otherwise the scripted
-    # stand-in (no model, no network), so the project runs without an account.
+    # AI analysis. "auto" uses Mistral when its key is set, else Gemini when its
+    # key is set, else the scripted stand-in (no model, no network), so the
+    # project runs without an account.
     knowledge_base_dir: Path = ROOT / "data" / "knowledge_base"
-    llm_provider: Literal["auto", "gemini", "scripted"] = "auto"
+    llm_provider: Literal["auto", "mistral", "gemini", "scripted"] = "auto"
+    mistral_api_key: SecretStr | None = Field(
+        default=None, validation_alias=AliasChoices("NEXORA_MISTRAL_API_KEY", "MISTRAL_API_KEY")
+    )
+    # The alias follows Mistral's latest Small model; the model that actually
+    # answered is stored with each analysis.
+    mistral_model: str = "mistral-small-latest"
     gemini_api_key: SecretStr | None = Field(
         default=None, validation_alias=AliasChoices("NEXORA_GEMINI_API_KEY", "GEMINI_API_KEY")
     )

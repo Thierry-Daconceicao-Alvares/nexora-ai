@@ -64,11 +64,14 @@ def settings(tmp_path: Path) -> Settings:
             database_url=f"sqlite:///{tmp_path / 'test.db'}",
             llm_provider="scripted",
             gemini_api_key=None,
+            mistral_api_key=None,
         )
     engine = make_engine(url)
     Base.metadata.drop_all(engine)
     engine.dispose()
-    return Settings(database_url=url, llm_provider="scripted", gemini_api_key=None)
+    return Settings(
+        database_url=url, llm_provider="scripted", gemini_api_key=None, mistral_api_key=None
+    )
 
 
 @pytest.fixture

@@ -1,17 +1,19 @@
 """Estimated cost of a model call.
 
-Gemini API paid-tier list prices in US dollars per million tokens, checked on
-the date below on https://ai.google.dev/gemini-api/docs/pricing. They change and
-must be checked again before relying on them. The free tier costs nothing but
-is rate limited.
+List prices in US dollars per million tokens, checked on the date below:
+Mistral on https://mistral.ai/news/mistral-small-4/ and Gemini on
+https://ai.google.dev/gemini-api/docs/pricing. They change and must be checked
+again before relying on them. The free plans of both providers cost nothing
+but are rate limited.
 """
 
 from __future__ import annotations
 
-PRICES_CHECKED_ON = "2026-10-18"
+PRICES_CHECKED_ON = "2026-10-20"
 
 # model -> (input, output) in USD per million tokens
 PRICES: dict[str, tuple[float, float]] = {
+    "mistral-small": (0.15, 0.60),  # Mistral Small 4
     "gemini-3.5-flash-lite": (0.30, 2.50),
     # Introductory price until 31 December 2026.
     "gemini-3.8-flash": (0.75, 3.75),
