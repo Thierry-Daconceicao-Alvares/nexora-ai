@@ -33,12 +33,15 @@ The model is given three labelled blocks: the rule results (facts it must not co
 | Each explanation concerns a rule that actually flagged | The explanation is removed (`corrected`) |
 | Every flagged rule is explained | The analysis is marked `unverified` |
 | Every figure (amount, threshold, percentage) appears in the input; counts up to 10 are allowed | The analysis is marked `unverified` and the figure is listed |
+| Every quotation appears in the input | The analysis is marked `unverified` and the quotation is listed |
 | The recommendation does not approve against a high or critical finding | Replaced by `escalate`, marked `unverified` |
 | The recommendation rests on at least one valid citation | Replaced by `request_info` (insufficient evidence) |
 
 The reviewer sees the verification status, the list of issues and the cited passages in full. The prompt is not stored, only its version (`analysis-v1`); the model, tokens, latency and estimated cost of each call are.
 
-**Providers.** With a `MISTRAL_API_KEY`, Mistral (`mistral-small-latest`, a French provider) does the analysis; Gemini is also supported (`GEMINI_API_KEY`). Both sit behind one interface, with a strict JSON schema, a timeout and bounded retries. Without a key, a **scripted stand-in** fills the same JSON from the rule results with templates, so the whole pipeline runs with no account and no network; it is not a language model, and its analyses are labelled `provider: scripted`. The tests use the scripted provider and fake models (an obedient model that follows an injection, a model that is down, answers outside the schema); the Mistral and Gemini providers are tested against mock HTTP and SDK clients. The [live check workflow](.github/workflows/live-check.yml) runs six scenario requests against the real API.
+**Providers.** With a `MISTRAL_API_KEY`, Mistral (`ministral-14b-latest`, served on Mistral's free plan) does the analysis; Gemini is also supported (`GEMINI_API_KEY`). Both sit behind one interface, with a strict JSON schema, a timeout and bounded retries. Without a key, a **scripted stand-in** fills the same JSON from the rule results with templates, so the whole pipeline runs with no account and no network; it is not a language model, and its analyses are labelled `provider: scripted`. The tests use the scripted provider and fake models (an obedient model that follows an injection, a model that is down, answers outside the schema); the Mistral and Gemini providers are tested against mock HTTP and SDK clients.
+
+**Live check.** Six scenario requests through the pipeline with Mistral on 20 October 2026: 6 of 6 answers in the schema at the first attempt and verified, about 3.7 to 7.2 seconds and 1,900 to 3,100 tokens per request (about $0.0005 at list price), no route changed by the model. One earlier run produced an invented quotation, which led to the quotation check. Details, limits and how to reproduce: [docs/live-check.md](docs/live-check.md).
 
 ## Run it
 
@@ -65,7 +68,7 @@ Demo tokens (not secrets, listed in [`config/demo_users.yaml`](config/demo_users
 ## Tests
 
 ```bash
-pytest          # 121 tests: validation, rules, screening, retrieval, verification, injection, API
+pytest          # 124 tests: validation, rules, screening, retrieval, verification, injection, API
 ruff check .
 ```
 
@@ -74,6 +77,7 @@ ruff check .
 - Retrieval is lexical (BM25) plus the sections the rules cite. On 36 short sections this finds the right passages in the tests; semantic search is not implemented.
 - The screen is a list of patterns. A reworded attack can pass it; it then reaches a model that has no tools and whose answer is verified, and it cannot change the route.
 - The figure check accepts any count up to 10 and does not check that a figure is used in the right place.
+- Code checks that a cited passage was given to the model, not that it is the most relevant one (see the live check).
 - The model call runs inside the submission request (a few seconds with a real model). A queue would be needed at volume.
 
 ## Roadmap
