@@ -53,8 +53,10 @@ jobs:
           if [ "$PROVIDER" = "mistral" ]; then label="${MODEL:-ministral-14b-latest}";
           elif [ "$PROVIDER" = "gemini" ]; then label="${MODEL:-gemini-3.5-flash-lite}";
           else label="scripted"; fi
-          folder="eval/results/$(date -u +%F)-$PROVIDER-$label"
+          prompt=$(python -c "from nexora.services.analysis import PROMPT_VERSION as v; print(v.split('-')[-1])")
+          folder="eval/results/$(date -u +%F)-$PROVIDER-$label-prompt-$prompt"
           [ "$PROVIDER" = "scripted" ] && folder="eval/results/$(date -u +%F)-scripted"
+          if [ -e "$folder" ]; then folder="$folder-run-${{ github.run_id }}"; fi
           echo "FOLDER=$folder" >> "$GITHUB_ENV"
           python scripts/evaluate.py --provider "$PROVIDER" --pause "$PAUSE" --out "$folder" 2>&1 | tee evaluate.log
       - if: always()

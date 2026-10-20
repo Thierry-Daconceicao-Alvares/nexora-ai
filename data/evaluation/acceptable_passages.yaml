@@ -9,7 +9,7 @@
 # NX-PUR-001 §5 requires" cites the sourcing policy although no sourcing
 # finding exists. A recommendation may now cite the policy of every rule that
 # applies to the request, passed or not. The run made with version 1 is kept
-# as it was published (eval/results/2026-10-20-mistral-ministral-14b-latest).
+# as it was published (eval/results/2026-10-20-mistral-ministral-14b-latest-prompt-v2).
 version: 2
 
 findings:
