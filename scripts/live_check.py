@@ -120,6 +120,16 @@ def main() -> int:
             f"{', '.join(row['citations']) or '-'}"
             + (f"  error: {row['error']}" if row["error"] else "")
         )
+        for issue in row["issues"]:
+            print(f"    issue {issue['code']}: {issue['detail']}")
+    print("\nModel, tokens and estimated cost per scenario:")
+    for row in rows:
+        cost = row["estimated_cost_usd"]
+        print(
+            f"  {row['scenario']:34} {row['model']}  {row['tokens']} tokens  "
+            + (f"${cost:.5f}" if cost is not None else "price unknown")
+        )
+        print(f"    {row['summary']}")
     args.out.write_text(json.dumps(rows, indent=2, ensure_ascii=False), encoding="utf-8")
     return 1 if failures else 0
 
