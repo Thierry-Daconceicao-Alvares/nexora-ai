@@ -5,8 +5,8 @@ completes it, the buyer approves it.
 Runs the Streamlit app in demo mode (the API inside the app) on an empty
 database. Needs Playwright and Chromium; skipped otherwise:
 
-    pip install playwright && playwright install chromium
-    pytest tests/ui
+    pip install -e ".[ui,e2e]" && playwright install chromium
+    pytest -m ui tests/ui
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ from pathlib import Path
 import pytest
 
 playwright = pytest.importorskip("playwright.sync_api")
+pytestmark = pytest.mark.ui
 
 ROOT = Path(__file__).resolve().parents[2]
 CHROMIUM = os.environ.get("NEXORA_TEST_CHROMIUM")  # optional path to a Chromium binary

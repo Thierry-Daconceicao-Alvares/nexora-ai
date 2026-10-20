@@ -53,7 +53,8 @@ nexora = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q -m 'not ui'"
+markers = ["ui: browser tests of the interface (pytest -m ui tests/ui)"]
 
 [tool.ruff]
 line-length = 100
