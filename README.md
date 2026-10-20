@@ -2,7 +2,7 @@
 
 **AI-assisted review of purchase requests: deterministic checks, cited explanations, human decisions and a full audit trail.**
 
-> **Status: work in progress (Phase 4 of 9).** Requests are submitted, validated, checked against the purchasing rules, screened, analysed by a language model with cited policies, verified in code, stored and routed. The review decisions, the interface and n8n arrive in the next phases. Nothing below describes a feature that is not implemented and tested.
+> **Status: work in progress (Phase 5 of 9).** Requests are submitted, validated, checked against the purchasing rules, screened, analysed by a language model with cited policies, verified in code, routed, and decided by the people whose role allows it, with every decision recorded. The interface and n8n arrive in the next phases. Nothing below describes a feature that is not implemented and tested.
 
 NEXORA AI is an engineering project built around a real business problem: procurement teams spend their time on checks a machine can do (missing fields, duplicates, prices far from the usual, amounts above an approval threshold, unknown suppliers, missing quotes) and rarely write down why a request was approved. It runs on synthetic data for **Nexora Industries, a fictional industrial company**; the purchasing policies it applies are the synthetic documents of [Enterprise AI Knowledge Assistant](https://github.com/Thierry-Daconceicao-Alvares/enterprise-ai-knowledge-assistant). It is not used by a real company, and every figure it reports comes from its test environment.
 
@@ -17,8 +17,11 @@ NEXORA AI is an engineering project built around a real business problem: procur
 | Retrieval | The policy sections cited by the flagged rules, plus the best lexical (BM25) matches among the 36 sections of the Nexora policies | [`services/retrieval.py`](src/nexora/services/retrieval.py) |
 | AI analysis | One model call: summary, explanation of each finding with citations, missing information, draft recommendation; then verified in code (see below) | [`services/analysis.py`](src/nexora/services/analysis.py) |
 | Routing | A category buyer (reviewer) below €50,000; the Head of Procurement (approver) from €50,000 or when a rule or the screen raises a high or critical finding. The AI analysis never changes the route | [`services/rules.py`](src/nexora/services/rules.py) |
-| Audit trail | Every step appended to an event log, which n8n will read; no token, secret, prompt or request text is ever stored in it | [`services/audit.py`](src/nexora/services/audit.py) |
-| Permissions | Checked in the services: only requesters and the intake service submit; requesters see only their own requests | [`services/authorization.py`](src/nexora/services/authorization.py) |
+| Review decisions | The category buyer approves, rejects, asks for information or escalates; the Head of Procurement decides on requests routed or escalated to her. A reason is always required, and each decision is stored with the evidence the decider had (findings, AI recommendation and its verification, cited passages) | [`services/review.py`](src/nexora/services/review.py), [`domain/workflow.py`](src/nexora/domain/workflow.py) |
+| Information requested | The requester completes the request (`PUT /requests/{id}`): a new version, and every check, the screen and the analysis run again | [`services/intake.py`](src/nexora/services/intake.py) |
+| Audit trail | Every step and every decision (who, when, what, why, on which version, with which evidence) appended to an event log, which n8n will read; no token, secret, prompt or request text is stored in it | [`services/audit.py`](src/nexora/services/audit.py) |
+| Permissions | Checked in the services: only requesters and the intake service submit; requesters see only their own requests; only the role a request waits for decides, never on its own request, once per transition (compare-and-set) and on the version it saw | [`services/authorization.py`](src/nexora/services/authorization.py), [`services/review.py`](src/nexora/services/review.py) |
+| Database migrations | Alembic, applied at start-up; a database created before the migrations is taken over | [`db/migrations`](src/nexora/db/migrations) |
 
 The rules are configuration, not code. For example, the approval bands follow the delegation of authority (NX-PUR-002 §2) and the sourcing evidence follows the procurement policy (NX-PUR-001 §5): one quote below €5,000, three from €5,000, a bid comparison from €50,000, an award decision from €250,000.
 
@@ -43,6 +46,19 @@ The reviewer sees the verification status, the list of issues and the cited pass
 
 **Live check.** Six scenario requests through the pipeline with Mistral on 20 October 2026: 6 of 6 answers in the schema at the first attempt and verified, about 3.7 to 7.2 seconds and 1,900 to 3,100 tokens per request (about $0.0005 at list price), no route changed by the model. One earlier run produced an invented quotation, which led to the quotation check. Details, limits and how to reproduce: [docs/live-check.md](docs/live-check.md).
 
+## The review workflow
+
+```
+awaiting_review    category buyer (reviewer)   approve  -> approved, or awaiting_approver when routed to the approver
+                                               escalate -> awaiting_approver
+                                               request_info -> info_requested
+                                               reject   -> rejected
+awaiting_approver  Head of Procurement         approve -> approved | request_info | reject
+info_requested     the requester               completes the request -> new version, checked again -> awaiting_review
+```
+
+Any other transition is refused with HTTP 409, a wrong role with 403. The AI analysis may recommend an action; only a person takes it.
+
 ## Run it
 
 With Docker (API and PostgreSQL):
@@ -53,7 +69,7 @@ cd nexora-ai
 docker compose up --build
 ```
 
-Then open http://localhost:8000/docs, click **Authorize**, enter `demo-sophie` (a requester), and try `POST /requests`: the answer includes the rule results and the `analysis`. To use a real model instead of the scripted stand-in, put `MISTRAL_API_KEY=...` (or `GEMINI_API_KEY=...`) in a `.env` file before starting.
+Then open http://localhost:8000/docs, click **Authorize**, enter `demo-sophie` (a requester), and try `POST /requests`: the answer includes the rule results and the `analysis`. Then authorize as `demo-karim` (the category buyer) and send `POST /requests/{id}/decisions` with an action, a reason and the version. To use a real model instead of the scripted stand-in, put `MISTRAL_API_KEY=...` (or `GEMINI_API_KEY=...`) in a `.env` file before starting.
 
 Without Docker (Python 3.12, SQLite):
 
@@ -68,7 +84,8 @@ Demo tokens (not secrets, listed in [`config/demo_users.yaml`](config/demo_users
 ## Tests
 
 ```bash
-pytest          # 124 tests: validation, rules, screening, retrieval, verification, injection, API
+pytest          # 149 tests: validation, rules, screening, retrieval, verification, injection,
+                # review workflow and permissions, concurrency, migrations, API
 ruff check .
 ```
 
@@ -80,6 +97,9 @@ ruff check .
 - Code checks that a cited passage was given to the model, not that it is the most relevant one (see the live check).
 - The model call runs inside the submission request (a few seconds with a real model). A queue would be needed at volume.
 
+- Users and roles are demo bearer tokens from a file; single sign-on and a real identity provider are out of scope.
+- There is one category buyer and one approver; assigning requests by category or plant, and delegation during absence (NX-PUR-002 §6), are not implemented.
+
 ## Roadmap
 
 | Phase | Content | Status |
@@ -87,9 +107,9 @@ ruff check .
 | 1. Product definition | Users, scope, acceptance criteria, risks | Done |
 | 2. Architecture | Components, states, data model, API, security boundaries | Done |
 | 3. Vertical slice | Intake, validation, rules, storage, routing, audit, tests | Done |
-| 4. AI and retrieval | Structured analysis with cited policies, insufficient-evidence handling, injection tests | **Done** |
-| 5. Approvals and audit | Review decisions, server-side authorisation, migrations | Next |
-| 6. Interface and n8n | Dashboard, review screens, email intake, notifications, reminders | Planned |
+| 4. AI and retrieval | Structured analysis with cited policies, insufficient-evidence handling, injection tests | Done |
+| 5. Approvals and audit | Review decisions, server-side authorisation, migrations | **Done** |
+| 6. Interface and n8n | Dashboard, review screens, email intake, notifications, reminders | Next |
 | 7. Evaluation | Labelled scenarios, baselines, latency and cost | Planned |
 | 8. Deployment | Public demo, setup from a clean clone | Planned |
 | 9. Launch | Screenshots, video | Planned |

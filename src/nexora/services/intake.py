@@ -28,13 +28,10 @@ from nexora.domain.schemas import PurchaseRequestIn
 from nexora.llm.base import LLMProvider
 from nexora.services import audit, rules, screening
 from nexora.services.analysis import AnalysisRecord, analyse
-from nexora.services.authorization import require_submit
+from nexora.services.authorization import Forbidden, can_read, require_submit
+from nexora.services.errors import Conflict, Invalid, NotFound
 from nexora.services.retrieval import KnowledgeBase, retrieve
 from nexora.services.validation import validate
-
-
-class Conflict(Exception):
-    """The request clashes with one already stored."""
 
 
 @dataclass
@@ -90,7 +87,6 @@ def submit(
     if session.scalar(select(RequestRow.id).where(RequestRow.external_ref == data.external_ref)):
         raise Conflict(f"A request with reference {data.external_ref} already exists.")
 
-    amount_eur = rules.to_eur(data.amount, data.currency, rule_set)
     request = RequestRow(
         id=str(uuid.uuid4()),
         external_ref=data.external_ref,
@@ -98,23 +94,10 @@ def submit(
         payload_hash=digest,
         version=1,
         requester_id=actor.id,
-        department=data.department,
-        supplier_id=data.supplier_id,
-        item_category=data.item_category,
-        item_code=data.item_code,
-        description=data.description,
-        quantity=data.quantity,
-        unit_price=data.unit_price,
-        currency=data.currency,
-        amount=data.amount,
-        amount_eur=amount_eur,
-        justification=data.justification,
-        delivery_date=data.delivery_date,
-        is_capex=data.is_capex,
-        attachments=[a.model_dump(mode="json") for a in data.attachments],
         status=Status.SUBMITTED,
         created_at=now,
         updated_at=now,
+        **_fields(data, rule_set),
     )
     session.add(request)
     try:
@@ -130,29 +113,116 @@ def submit(
         request_id=request.id,
         actor_id=actor.id,
         external_ref=request.external_ref,
-        amount_eur=float(amount_eur),
+        amount_eur=float(request.amount_eur),
     )
-    _store_checks(session, request, report.checks, rule_set.version)
+    checked = _check_and_route(
+        session, request, data, report.checks, actor, rule_set, now, provider, knowledge_base
+    )
+    return IntakeResult(request=request, checks=report.checks + checked)
+
+
+def resubmit(
+    session: Session,
+    actor: User,
+    request_id: str,
+    payload: dict[str, Any],
+    rule_set: RulesConfig,
+    now: datetime,
+    provider: LLMProvider | None = None,
+    knowledge_base: KnowledgeBase | None = None,
+) -> IntakeResult:
+    """The requester completes a request returned for information: the request
+    gets a new version and goes through every check again."""
+    request = session.get(RequestRow, request_id)
+    if request is None or not can_read(actor, request.requester_id):
+        raise NotFound("No such request.")
+    if actor.id != request.requester_id:
+        raise Forbidden("Only the requester can complete a request.")
+    if request.status != Status.INFO_REQUESTED:
+        raise Conflict(
+            f"The request is {request.status}: it can only be completed when information "
+            "was requested."
+        )
+    if payload.get("external_ref") != request.external_ref:
+        raise Invalid(f"external_ref must stay {request.external_ref}.", field="external_ref")
+
+    report = validate(payload, rule_set, known_categories(session), now.date())
+    if not report.valid:
+        audit.record(
+            session,
+            "request.resubmission_failed",
+            at=now,
+            request_id=request.id,
+            actor_id=actor.id,
+            errors=[{"rule_id": c.rule_id, "field": c.field} for c in report.checks],
+        )
+        return IntakeResult(request=None, checks=report.checks)
+
+    data = report.request
+    assert data is not None
+    for name, value in _fields(data, rule_set).items():
+        setattr(request, name, value)
+    request.version += 1
+    request.route = None
+    _move(session, request, Status.SUBMITTED, now, actor.id, version=request.version)
+    checked = _check_and_route(
+        session, request, data, report.checks, actor, rule_set, now, provider, knowledge_base
+    )
+    return IntakeResult(request=request, checks=report.checks + checked)
+
+
+def _fields(data: PurchaseRequestIn, rule_set: RulesConfig) -> dict[str, Any]:
+    return {
+        "department": data.department,
+        "supplier_id": data.supplier_id,
+        "item_category": data.item_category,
+        "item_code": data.item_code,
+        "description": data.description,
+        "quantity": data.quantity,
+        "unit_price": data.unit_price,
+        "currency": data.currency,
+        "amount": data.amount,
+        "amount_eur": rules.to_eur(data.amount, data.currency, rule_set),
+        "justification": data.justification,
+        "delivery_date": data.delivery_date,
+        "is_capex": data.is_capex,
+        "attachments": [a.model_dump(mode="json") for a in data.attachments],
+    }
+
+
+def _check_and_route(
+    session: Session,
+    request: RequestRow,
+    data: PurchaseRequestIn,
+    validation_checks: list[CheckResult],
+    actor: User,
+    rule_set: RulesConfig,
+    now: datetime,
+    provider: LLMProvider | None,
+    knowledge_base: KnowledgeBase | None,
+) -> list[CheckResult]:
+    """Rules, screening, analysis and routing of the current version."""
+    _store_checks(session, request, validation_checks, rule_set.version)
     _move(session, request, Status.VALIDATED, now, actor.id)
 
     rule_input = rules.RuleInput(
         request=data,
-        requester_id=actor.id,
-        amount_eur=amount_eur,
+        requester_id=request.requester_id,
+        amount_eur=request.amount_eur,
         unit_price_eur=rules.to_eur(Decimal(data.unit_price), data.currency, rule_set),
         submitted_at=now,
     )
     results = rules.evaluate(rule_input, rule_set, DatabaseFacts(session, rule_set))
     _store_checks(session, request, results, rule_set.version)
-    request.highest_severity = rules.highest_severity(results).value
     audit.record(
         session,
         "rules.evaluated",
         at=now,
         request_id=request.id,
+        version=request.version,
         rule_set_version=rule_set.version,
         flags=[r.rule_id for r in results if r.outcome.value != "pass"],
-        highest_severity=request.highest_severity,
+        highest_severity=rules.highest_severity(results).value,
     )
 
     screen = screening.screen(data)
@@ -177,7 +247,7 @@ def submit(
         "approver" if rules.needs_approver(rule_input, checked, rule_set) else "reviewer"
     )
     _move(session, request, Status.AWAITING_REVIEW, now, None, route=request.route)
-    return IntakeResult(request=request, checks=report.checks + checked)
+    return checked
 
 
 def _analyse(

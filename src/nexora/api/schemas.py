@@ -5,10 +5,11 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from nexora.db.models import AnalysisRow, AuditEventRow, CheckRow, RequestRow
+from nexora.db.models import AnalysisRow, AuditEventRow, CheckRow, DecisionRow, RequestRow
 from nexora.domain.models import CheckResult
+from nexora.domain.workflow import Action
 from nexora.services.retrieval import KnowledgeBase
 
 
@@ -128,6 +129,45 @@ class Analysis(BaseModel):
         )
 
 
+class DecisionIn(BaseModel):
+    action: Action
+    reason: str = Field(min_length=10, max_length=2000)
+    version: int = Field(ge=1, description="The version of the request the decider looked at.")
+
+
+class Decision(BaseModel):
+    id: int
+    version: int
+    actor_id: str
+    role: str
+    action: str
+    reason: str
+    from_status: str
+    to_status: str
+    evidence: dict[str, Any]
+    created_at: datetime
+
+    @classmethod
+    def of(cls, row: DecisionRow) -> Decision:
+        return cls(
+            id=row.id,
+            version=row.version,
+            actor_id=row.actor_id,
+            role=row.role,
+            action=row.action,
+            reason=row.reason,
+            from_status=row.from_status,
+            to_status=row.to_status,
+            evidence=row.evidence,
+            created_at=row.created_at,
+        )
+
+
+class DecisionResult(BaseModel):
+    decision: Decision
+    status: str
+
+
 class RequestSummary(BaseModel):
     id: str
     external_ref: str
@@ -173,6 +213,8 @@ class RequestDetail(RequestSummary):
     attachments: list[dict[str, Any]]
     checks: list[Check]
     analysis: Analysis | None = None
+    decisions: list[Decision] = []
+    allowed_actions: list[str] = []
     audit: list[AuditEvent] = []
 
     @classmethod
@@ -191,6 +233,7 @@ class RequestDetail(RequestSummary):
             is_capex=row.is_capex,
             attachments=row.attachments,
             checks=[Check.of(c) for c in row.checks if c.version == row.version],
+            decisions=[Decision.of(d) for d in row.decisions],
             analysis=next(
                 (Analysis.of(a, kb) for a in reversed(row.analyses) if a.version == row.version),
                 None,

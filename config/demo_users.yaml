@@ -1,6 +1,6 @@
 # Demonstration users and their bearer tokens. These are not secrets: they let
 # anyone try the roles of the demo. A real deployment replaces this file with
-# the company's identity provider (see docs/architecture.md, security).
+# the company's identity provider (single sign-on is out of scope, see README).
 users:
   - { id: u-sophie, name: Sophie Martin, email: sophie.martin@nexora.example, role: requester, department: Maintenance, token: demo-sophie }
   - { id: u-marc, name: Marc Leroy, email: marc.leroy@nexora.example, role: requester, department: Production, token: demo-marc }

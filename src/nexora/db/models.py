@@ -92,6 +92,9 @@ class RequestRow(Base):
     analyses: Mapped[list[AnalysisRow]] = relationship(
         back_populates="request", order_by="AnalysisRow.id", cascade="all, delete-orphan"
     )
+    decisions: Mapped[list[DecisionRow]] = relationship(
+        back_populates="request", order_by="DecisionRow.id", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (Index("ix_requests_requester_created", "requester_id", "created_at"),)
 
@@ -159,6 +162,27 @@ class CitationRow(Base):
     passage_hash: Mapped[str] = mapped_column(String(16))
 
     analysis: Mapped[AnalysisRow] = relationship(back_populates="citations")
+
+
+class DecisionRow(Base):
+    """A decision by a person on one version of a request: who, when, what, why,
+    and the evidence they had in front of them."""
+
+    __tablename__ = "decisions"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    request_id: Mapped[str] = mapped_column(ForeignKey("purchase_requests.id"), index=True)
+    version: Mapped[int]
+    actor_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    role: Mapped[str] = mapped_column(String(20))
+    action: Mapped[str] = mapped_column(String(20))  # approve, reject, request_info, escalate
+    reason: Mapped[str] = mapped_column(Text)
+    from_status: Mapped[str] = mapped_column(String(30))
+    to_status: Mapped[str] = mapped_column(String(30))
+    evidence: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    request: Mapped[RequestRow] = relationship(back_populates="decisions")
 
 
 class AuditEventRow(Base):

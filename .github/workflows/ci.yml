@@ -45,13 +45,24 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: docker compose up --build -d --wait
-      - name: Submit a request through the running stack
+      - name: Submit a request and decide on it through the running stack
         run: |
           curl -fsS http://localhost:8000/health
           curl -fsS -X POST http://localhost:8000/requests \
             -H "Authorization: Bearer demo-sophie" -H "Content-Type: application/json" \
             -d '{"external_ref":"PR-2026-00001","department":"Maintenance","supplier_id":"SUP-0002","item_category":"spare_parts","item_code":"MRO-BRG-6205","description":"Ball bearings 6205-2RS for conveyor line 3","quantity":"20","unit_price":"8.40","currency":"EUR","justification":"Preventive maintenance of conveyor line 3","delivery_date":"2099-01-15","attachments":[{"kind":"quote","file_name":"quote.pdf"}]}' \
-            | python3 -c "import json,sys; d=json.load(sys.stdin); a=d['analysis']; assert d['status']=='awaiting_review', d; assert a['status']=='completed' and a['verification']=='verified', a; print(d['status'], d['route'], a['provider'], a['output']['recommendation']['action'])"
+            > submitted.json
+          python3 -c "import json; d=json.load(open('submitted.json')); a=d['analysis']; assert d['status']=='awaiting_review', d; assert a['status']=='completed' and a['verification']=='verified', a; print(d['status'], d['route'], a['provider'], a['output']['recommendation']['action'])"
+          id=$(python3 -c "import json; print(json.load(open('submitted.json'))['id'])")
+          curl -fsS -X POST "http://localhost:8000/requests/$id/decisions" \
+            -H "Authorization: Bearer demo-karim" -H "Content-Type: application/json" \
+            -d '{"action":"approve","reason":"Within budget, quote attached, active supplier.","version":1}' \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['status']=='approved', d; print(d['status'])"
+          # The migrations ran: a second start keeps the data and the schema.
+          docker compose restart api && sleep 5
+          docker compose up -d --wait
+          curl -fsS "http://localhost:8000/requests/$id" -H "Authorization: Bearer demo-karim" \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['status']=='approved' and len(d['decisions'])==1, d; print('persisted')"
       - if: failure()
         run: docker compose logs
       - run: docker compose down -v

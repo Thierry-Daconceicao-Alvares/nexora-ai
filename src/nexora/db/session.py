@@ -9,10 +9,12 @@ from decimal import Decimal
 from pathlib import Path
 
 import yaml
-from sqlalchemy import Engine, create_engine, event, select
+from alembic import command
+from alembic.config import Config
+from sqlalchemy import Engine, create_engine, event, inspect, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from nexora.db.models import Base, ReferencePriceRow, SupplierRow, UserRow
+from nexora.db.models import ReferencePriceRow, SupplierRow, UserRow
 
 
 def make_engine(url: str) -> Engine:
@@ -31,9 +33,24 @@ def make_session_factory(engine: Engine) -> sessionmaker[Session]:
     return sessionmaker(engine, expire_on_commit=False)
 
 
-def create_schema(engine: Engine) -> None:
-    """Create the tables. Phase 3 only: Alembic migrations replace this in Phase 5."""
-    Base.metadata.create_all(engine)
+MIGRATIONS = Path(__file__).parent / "migrations"
+BASELINE = "0001"  # the schema that phases 3 and 4 created without Alembic
+
+
+def migrate(engine: Engine) -> None:
+    """Bring the database to the latest schema with the Alembic migrations.
+
+    A database created before the migrations existed (phases 3 and 4) is first
+    marked as being at the baseline revision, then upgraded.
+    """
+    config = Config()
+    config.set_main_option("script_location", str(MIGRATIONS))
+    with engine.begin() as connection:
+        config.attributes["connection"] = connection
+        tables = set(inspect(connection).get_table_names())
+        if "purchase_requests" in tables and "alembic_version" not in tables:
+            command.stamp(config, BASELINE)
+        command.upgrade(config, "head")
 
 
 @contextmanager

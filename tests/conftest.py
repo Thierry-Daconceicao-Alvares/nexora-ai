@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 
 from nexora.api.app import create_app
 from nexora.config import ROOT, Settings
@@ -68,6 +69,8 @@ def settings(tmp_path: Path) -> Settings:
         )
     engine = make_engine(url)
     Base.metadata.drop_all(engine)
+    with engine.begin() as connection:
+        connection.execute(text("DROP TABLE IF EXISTS alembic_version"))
     engine.dispose()
     return Settings(
         database_url=url, llm_provider="scripted", gemini_api_key=None, mistral_api_key=None
