@@ -93,7 +93,7 @@ def _analysis(detail: dict) -> None:
     st.markdown(output["summary"])
     recommendation = output["recommendation"]
     st.markdown(
-        f"**Suggested decision: {ui.ACTIONS[recommendation['action']].lower()}.** "
+        f"**Suggested decision: {ui.ACTIONS[recommendation['action']]}.** "
         f"{recommendation['rationale']}"
     )
     st.caption("A suggestion for the reviewer. Only a person decides.")
@@ -114,7 +114,8 @@ def _analysis(detail: dict) -> None:
     if analysis["citations"]:
         st.markdown("**Policy passages cited**")
         for citation in analysis["citations"]:
-            with st.expander(f"{citation['passage_id']}: {citation['section']}"):
+            document = citation["document"].split(" ", 1)[0]
+            with st.expander(f"{document} {citation['section']}"):
                 st.caption(citation["document"])
                 st.markdown(
                     f'<div class="nx-quote">{html.escape(citation["text"] or "")}</div>',

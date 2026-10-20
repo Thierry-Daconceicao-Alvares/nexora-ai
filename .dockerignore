@@ -5,3 +5,4 @@
 tests
 .pytest_cache
 .ruff_cache
+n8n

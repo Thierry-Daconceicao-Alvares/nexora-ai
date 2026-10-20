@@ -1,0 +1,181 @@
+{
+  "id": "89bb5959c2d955",
+  "name": "NEXORA 3 - Reminders",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Reminders\nOn working days at 08:15: asks NEXORA which requests have been waiting for a person for more than 48 hours, and reminds that person.",
+        "width": 480,
+        "height": 160
+      },
+      "id": "28075843-85ee-5209-be42-2360a263eac6",
+      "name": "About",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "15 8 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "8832f990-699b-58c5-931d-6ec7e67a001c",
+      "name": "Working days at 08:15",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "650c11c0-2d21-5158-8ce7-807bce3fce32",
+      "name": "Run on demand",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.NEXORA_API_URL }}/integration/reminders",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.NEXORA_INTAKE_TOKEN }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "older_than_hours",
+              "value": "48"
+            }
+          ]
+        }
+      },
+      "id": "5fa0181c-c552-52d9-8c4f-e091f23facfa",
+      "name": "Requests waiting too long",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = [];\nfor (const reminder of $input.all().map(i => i.json)) {\n  for (const person of reminder.recipients) {\n    items.push({ json: { to: `${person.name} <${person.email}>`, subject: reminder.subject,\n                         text: `Hello ${person.name.split(' ')[0]},\\n\\n${reminder.text}` } });\n  }\n}\nreturn items;"
+      },
+      "id": "5c20f44a-a9d0-5093-b889-7766ef3961dc",
+      "name": "One email per person",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "NEXORA AI <nexora@nexora.example>",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.text }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "118ea23f-df5c-5d16-90b6-2b039265519c",
+      "name": "Send the reminder",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        660,
+        0
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "nexoraSmtp00001",
+          "name": "Mailpit (local SMTP)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Working days at 08:15": {
+      "main": [
+        [
+          {
+            "node": "Requests waiting too long",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run on demand": {
+      "main": [
+        [
+          {
+            "node": "Requests waiting too long",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Requests waiting too long": {
+      "main": [
+        [
+          {
+            "node": "One email per person",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One email per person": {
+      "main": [
+        [
+          {
+            "node": "Send the reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "pinData": {},
+  "tags": []
+}

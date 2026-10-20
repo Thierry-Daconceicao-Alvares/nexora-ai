@@ -39,6 +39,19 @@ jobs:
           NEXORA_TEST_DATABASE_URL: postgresql+psycopg://nexora:ci-only@localhost:5432/nexora_test
         run: pytest tests/integration tests/security
 
+  interface:
+    name: Interface in a browser (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[ui,e2e,dev]"
+      - run: playwright install --with-deps chromium
+      - run: pytest -m ui tests/ui
+
   docker:
     name: Docker Compose stack starts and answers
     runs-on: ubuntu-latest
@@ -63,6 +76,14 @@ jobs:
           docker compose up -d --wait
           curl -fsS "http://localhost:8000/requests/$id" -H "Authorization: Bearer demo-karim" \
             | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['status']=='approved' and len(d['decisions'])==1, d; print('persisted')"
+      - name: The interface answers
+        run: curl -fsS http://localhost:8501/_stcore/health
+      - name: n8n workflows end to end (email intake, notifications, digest)
+        run: |
+          pip install httpx==0.28.1
+          python3 scripts/e2e_n8n.py --api http://localhost:8000 --mailpit http://localhost:8025 \
+            --smtp localhost:1025 \
+            --digest-command "docker compose exec -T -e N8N_RUNNERS_BROKER_PORT=5690 n8n n8n execute --id 9b7dfceefef156"
       - if: failure()
         run: docker compose logs
       - run: docker compose down -v

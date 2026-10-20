@@ -1,5 +1,9 @@
-# Local stack. Phases 3-4: the API and PostgreSQL. The interface, n8n and Mailpit
-# are added in later phases.
+# The whole NEXORA AI stack on one machine:
+#   api      FastAPI backend          http://localhost:8000/docs
+#   ui       Streamlit interface      http://localhost:8501
+#   n8n      email intake, notifications, reminders, digest   http://localhost:5678
+#   mailpit  local mailbox (nothing leaves the machine)       http://localhost:8025
+#   db       PostgreSQL
 services:
   db:
     image: postgres:16-alpine
@@ -19,6 +23,7 @@ services:
     build: .
     environment:
       NEXORA_DATABASE_URL: postgresql+psycopg://nexora:${POSTGRES_PASSWORD:-nexora-local}@db:5432/nexora
+      NEXORA_UI_URL: http://localhost:8501
       # No key: the scripted stand-in analyses the requests. Set one in .env to use a model.
       MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
@@ -28,5 +33,58 @@ services:
       db:
         condition: service_healthy
 
+  ui:
+    build: .
+    command: ["streamlit", "run", "app/streamlit_app.py", "--server.port", "8501", "--server.address", "0.0.0.0"]
+    environment:
+      NEXORA_API_URL: http://api:8000
+    ports:
+      - "8501:8501"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    depends_on:
+      api:
+        condition: service_healthy
+
+  mailpit:
+    image: axllent/mailpit:v1.31.4
+    ports:
+      - "8025:8025"   # web interface and API
+      - "1025:1025"   # SMTP: send requests to purchasing@nexora.example here
+
+  n8n:
+    image: n8nio/n8n:2.42.3
+    entrypoint: ["/bin/sh", "/nexora/start.sh"]
+    environment:
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-nexora-local-n8n-key}
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      N8N_SECURE_COOKIE: "false"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      GENERIC_TIMEZONE: Europe/Paris
+      TZ: Europe/Paris
+      NEXORA_API_URL: http://api:8000
+      NEXORA_INTAKE_TOKEN: demo-intake
+      NEXORA_UI_URL: http://localhost:8501
+      MAILPIT_URL: http://mailpit:8025
+    volumes:
+      - ./n8n:/nexora:ro
+      - n8n-data:/home/node/.n8n
+    ports:
+      - "5678:5678"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5678/healthz').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    depends_on:
+      api:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+
 volumes:
   db-data:
+  n8n-data:

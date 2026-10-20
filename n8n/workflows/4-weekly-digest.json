@@ -1,0 +1,181 @@
+{
+  "id": "9b7dfceefef156",
+  "name": "NEXORA 4 - Weekly digest",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Weekly digest\nEvery Monday at 07:45: the figures of the last 7 days for the Head of Procurement, computed by NEXORA from the stored requests.",
+        "width": 480,
+        "height": 160
+      },
+      "id": "28075843-85ee-5209-be42-2360a263eac6",
+      "name": "About",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "45 7 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "d815fcd9-41ff-559c-9bb8-b159c37243a8",
+      "name": "Mondays at 07:45",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "650c11c0-2d21-5158-8ce7-807bce3fce32",
+      "name": "Run on demand",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.NEXORA_API_URL }}/integration/digest",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.NEXORA_INTAKE_TOKEN }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "days",
+              "value": "7"
+            }
+          ]
+        }
+      },
+      "id": "65a6f557-b335-506d-9eeb-8776cdf3ed71",
+      "name": "Figures of the week",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const digest = $json;\nreturn digest.recipients.map(person => ({ json: {\n  to: `${person.name} <${person.email}>`, subject: digest.subject,\n  text: `Hello ${person.name.split(' ')[0]},\\n\\n${digest.text}` } }));"
+      },
+      "id": "cf148a3b-ec82-5adb-8777-7268318aaf5f",
+      "name": "One email per recipient",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "NEXORA AI <nexora@nexora.example>",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.text }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "726eba5d-5bfb-5c6a-a39c-2fdadb3e1ab0",
+      "name": "Send the digest",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        660,
+        0
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "nexoraSmtp00001",
+          "name": "Mailpit (local SMTP)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Mondays at 07:45": {
+      "main": [
+        [
+          {
+            "node": "Figures of the week",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run on demand": {
+      "main": [
+        [
+          {
+            "node": "Figures of the week",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Figures of the week": {
+      "main": [
+        [
+          {
+            "node": "One email per recipient",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One email per recipient": {
+      "main": [
+        [
+          {
+            "node": "Send the digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "pinData": {},
+  "tags": []
+}

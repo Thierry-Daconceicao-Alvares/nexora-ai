@@ -76,6 +76,13 @@ def test_the_outbox_says_who_to_tell_and_moves_with_the_cursor(client):
     assert "Which conveyor line exactly?" in info["text"]
 
 
+def test_a_cursor_beyond_the_last_event_starts_again(client):
+    client.post("/requests", json=valid_payload(), headers=auth("sophie"))
+    feed = outbox(client, after=10_000)
+    assert feed["cursor_reset"] is True
+    assert [i["kind"] for i in feed["items"]] == ["review_needed"]
+
+
 def test_approval_and_rejection_messages_go_to_the_requester(client):
     risky = client.post("/requests", json=RISKY, headers=auth("sophie")).json()
     reason = {"reason": "Supplier blocked in the vendor master.", "version": 1}

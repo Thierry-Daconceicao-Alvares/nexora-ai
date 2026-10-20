@@ -1,0 +1,383 @@
+{
+  "id": "77589816edc957",
+  "name": "NEXORA 1 - Email intake",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Email intake\nEvery minute: reads the unread emails sent to purchasing@nexora.example, turns each one into a purchase request, submits it to NEXORA **on behalf of the sender**, and answers the sender.\n\nThe backend checks everything (sender is a known requester, fields, rules). Locally the mailbox is Mailpit, read through its API; in production, an IMAP or Outlook trigger replaces the first two nodes.",
+        "width": 560,
+        "height": 220
+      },
+      "id": "28075843-85ee-5209-be42-2360a263eac6",
+      "name": "About",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -260
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "bef47fb8-1f52-5f46-8d79-eb7c5d2d70b9",
+      "name": "Every minute",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.MAILPIT_URL }}/api/v1/search",
+        "options": {},
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "is:unread to:purchasing@nexora.example"
+            }
+          ]
+        }
+      },
+      "id": "1f0d609e-c279-5708-ab4c-2c8716e2322d",
+      "name": "Unread purchasing emails",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return ($json.messages || []).map(m => ({ json: { ID: m.ID } }));"
+      },
+      "id": "6715ebd6-30f9-5e7d-8c84-0f1c283af31d",
+      "name": "One item per email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.MAILPIT_URL }}/api/v1/message/{{ $json.ID }}",
+        "options": {}
+      },
+      "id": "793c08e7-8363-5a65-82e4-3197c976eb7c",
+      "name": "Read the email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// The purchasing mailbox receives requests written on the template below.\n// Each \"Label: value\" line fills one field; attachments are recognised by\n// their file name (quote, bid comparison, award, single source, CapEx, spec).\nconst email = $json;\nconst labels = {\n  'reference': 'external_ref', 'department': 'department', 'supplier': 'supplier_id',\n  'category': 'item_category', 'item code': 'item_code', 'description': 'description',\n  'quantity': 'quantity', 'unit price': 'unit_price', 'currency': 'currency',\n  'justification': 'justification', 'needed by': 'delivery_date', 'capex': 'is_capex',\n};\nconst payload = { attachments: [], is_capex: false };\nfor (const line of (email.Text || '').split(/\\r?\\n/)) {\n  const match = line.match(/^\\s*([A-Za-z ]+?)\\s*:\\s*(.+?)\\s*$/);\n  if (!match) continue;\n  const key = labels[match[1].toLowerCase()];\n  if (!key) continue;\n  payload[key] = key === 'is_capex' ? /^(yes|true|oui|1)$/i.test(match[2]) : match[2];\n}\nif (payload.currency) payload.currency = payload.currency.toUpperCase();\nif (payload.quantity) payload.quantity = payload.quantity.replace(',', '.');\nif (payload.unit_price) payload.unit_price = payload.unit_price.replace(/\\s/g, '').replace(',', '.');\nconst kinds = [\n  [/quote|devis|offer/i, 'quote'], [/bid|comparison|comparatif/i, 'bid_comparison'],\n  [/award/i, 'award_decision'], [/single.?source|ssj/i, 'single_source_justification'],\n  [/capex/i, 'capex_approval'], [/spec/i, 'specification'],\n];\nconst ignored = [];\nfor (const file of email.Attachments || []) {\n  const kind = kinds.find(([pattern]) => pattern.test(file.FileName));\n  if (kind) payload.attachments.push({ kind: kind[1], file_name: file.FileName });\n  else ignored.push(file.FileName);\n}\nconst sender = (email.From || {}).Address || '';\nreturn {\n  json: {\n    ready: Boolean(payload.external_ref && sender),\n    payload,\n    ignored,\n    sender,\n    senderName: (email.From || {}).Name || sender,\n    subject: email.Subject || '',\n    messageId: email.MessageID || email.ID,\n    mailpitId: email.ID,\n  },\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "13884f34-faaa-5187-9740-99d2b9c9693d",
+      "name": "Parse the request form",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "6182f6a8-5da5-5b26-ab07-98db0dc13424",
+              "leftValue": "={{ $json.ready }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "32955de9-5122-503a-8f0a-078bcea5308f",
+      "name": "Follows the template?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.NEXORA_API_URL }}/requests",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.NEXORA_INTAKE_TOKEN }}"
+            },
+            {
+              "name": "On-Behalf-Of",
+              "value": "={{ $json.sender }}"
+            },
+            {
+              "name": "Idempotency-Key",
+              "value": "=email:{{ $json.messageId }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}"
+      },
+      "id": "f90298fa-15ba-528f-8b75-1603db8585a3",
+      "name": "Submit to NEXORA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Turn the answer of NEXORA into a reply to the sender.\nconst email = $('Parse the request form').item.json;\nconst status = $json.statusCode;\nconst body = $json.body || {};\nconst ref = email.payload.external_ref;\nlet subject, text;\nif (status === 201 || status === 200) {\n  const flags = (body.checks || []).filter(c => c.outcome === 'flag');\n  const who = body.route === 'approver' ? 'the Head of Procurement' : 'a category buyer';\n  subject = status === 201 ? `Received: ${ref}` : `Already received: ${ref}`;\n  text = `Hello ${email.senderName.split(' ')[0]},\\n\\n` + (status === 201\n      ? `Your purchase request ${ref} was received and checked.`\n      : `Your purchase request ${ref} had already been received; it was not submitted twice.`)\n    + `\\n\\nAmount: ${Number(body.amount).toFixed(2)} ${body.currency}. It will be reviewed by ${who}.`\n    + (flags.length\n      ? '\\n\\nPoints the reviewer will look at:\\n' + flags.map(f => `- ${f.message}`).join('\\n')\n      : '\\n\\nNo rule raised a finding.')\n    + (email.ignored.length ? `\\n\\nFiles not recognised: ${email.ignored.join(', ')}.` : '')\n    + `\\n\\nFollow it: ${$env.NEXORA_UI_URL}/?request=${body.id}`;\n} else {\n  const detail = body.detail || {};\n  const errors = (detail.errors || []).map(e => `- ${e.field || 'request'}: ${e.message}`);\n  subject = `Not submitted: ${ref}`;\n  text = `Hello ${email.senderName.split(' ')[0]},\\n\\n`\n    + `Your purchase request ${ref} could not be submitted.\\n\\n`\n    + (detail.message || `The service answered HTTP ${status}.`)\n    + (errors.length ? '\\n' + errors.join('\\n') : '')\n    + '\\n\\nCorrect the email and send it again.';\n}\nreturn { json: { to: email.sender, subject: `[NEXORA] ${subject}`, text } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "372a9fc8-dda3-58ab-b0f3-795e7dc6fb61",
+      "name": "Write the answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// The email does not follow the template: send it back.\nconst email = $json;\nconst text = 'Your email could not be read as a purchase request.\\n\\n'\n  + 'Write one field per line, then attach the quotes:\\n\\n'\n  + 'Reference: PR-2026-01234\\nDepartment: Maintenance\\nSupplier: SUP-0002\\n'\n  + 'Category: spare_parts\\nItem code: MRO-BRG-6205 (optional)\\n'\n  + 'Description: Ball bearings 6205-2RS for line 3\\nQuantity: 20\\nUnit price: 8.40\\n'\n  + 'Currency: EUR\\nJustification: Preventive maintenance of line 3\\n'\n  + 'Needed by: 2026-12-01\\nCapEx: no\\n';\nreturn { json: { to: email.sender, subject: `[NEXORA] Not understood: ${email.subject}`, text } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "f383fab7-f02b-56aa-8573-1f6ae3b5b236",
+      "name": "Explain the template",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "NEXORA AI <nexora@nexora.example>",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.text }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "a331f55c-84ae-5e3b-9e6c-d54d8c3875ed",
+      "name": "Answer the sender",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        0
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "nexoraSmtp00001",
+          "name": "Mailpit (local SMTP)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $env.MAILPIT_URL }}/api/v1/messages",
+        "options": {},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ IDs: [$('Parse the request form').item.json.mailpitId], Read: true }) }}"
+      },
+      "id": "a7d04bcc-6119-5c96-b7b7-7e25639a06c2",
+      "name": "Mark as read",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Every minute": {
+      "main": [
+        [
+          {
+            "node": "Unread purchasing emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unread purchasing emails": {
+      "main": [
+        [
+          {
+            "node": "One item per email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One item per email": {
+      "main": [
+        [
+          {
+            "node": "Read the email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read the email": {
+      "main": [
+        [
+          {
+            "node": "Parse the request form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse the request form": {
+      "main": [
+        [
+          {
+            "node": "Follows the template?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Follows the template?": {
+      "main": [
+        [
+          {
+            "node": "Submit to NEXORA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Explain the template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Submit to NEXORA": {
+      "main": [
+        [
+          {
+            "node": "Write the answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write the answer": {
+      "main": [
+        [
+          {
+            "node": "Answer the sender",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Explain the template": {
+      "main": [
+        [
+          {
+            "node": "Answer the sender",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer the sender": {
+      "main": [
+        [
+          {
+            "node": "Mark as read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "pinData": {},
+  "tags": []
+}

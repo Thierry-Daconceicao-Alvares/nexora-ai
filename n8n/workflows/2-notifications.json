@@ -1,0 +1,205 @@
+{
+  "id": "9c96eb44d92c51",
+  "name": "NEXORA 2 - Notifications",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Notifications\nEvery minute: reads the NEXORA outbox from the last cursor and emails each recipient: the category buyer when a request waits for review, the Head of Procurement when it waits for approval, the requester when information is requested or a decision is taken.\n\nThe backend decides who receives what; n8n delivers and keeps the cursor, so each event is sent once.",
+        "width": 560,
+        "height": 200
+      },
+      "id": "28075843-85ee-5209-be42-2360a263eac6",
+      "name": "About",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "bef47fb8-1f52-5f46-8d79-eb7c5d2d70b9",
+      "name": "Every minute",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { after: $getWorkflowStaticData('global').cursor || 0 } }];"
+      },
+      "id": "d0ce981a-a02d-5e9e-9cd9-4756ecd28bb4",
+      "name": "Read the cursor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.NEXORA_API_URL }}/integration/outbox",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.NEXORA_INTAKE_TOKEN }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "after",
+              "value": "={{ $json.after }}"
+            }
+          ]
+        }
+      },
+      "id": "a1c3648a-1040-5835-ad3b-e3739d6ce7de",
+      "name": "Read the outbox",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// One email per recipient. With nothing to send, the cursor moves on here;\n// otherwise it moves after the emails are sent (see the last node).\nconst outbox = $json;\nconst items = [];\nfor (const message of outbox.items) {\n  for (const person of message.recipients) {\n    items.push({ json: { to: `${person.name} <${person.email}>`, subject: message.subject,\n                         text: `Hello ${person.name.split(' ')[0]},\\n\\n${message.text}` } });\n  }\n}\nif (items.length === 0) {\n  $getWorkflowStaticData('global').cursor = outbox.next_cursor;\n}\nreturn items;"
+      },
+      "id": "cf148a3b-ec82-5adb-8777-7268318aaf5f",
+      "name": "One email per recipient",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "NEXORA AI <nexora@nexora.example>",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.text }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "445daea6-1cca-52b5-a107-c19452e71d5c",
+      "name": "Send the email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        880,
+        0
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "nexoraSmtp00001",
+          "name": "Mailpit (local SMTP)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "$getWorkflowStaticData('global').cursor = $('Read the outbox').first().json.next_cursor;\nreturn [{ json: { sent: $input.all().length } }];"
+      },
+      "id": "76ea2c56-20df-59e0-b68b-dcb7ae20b1f5",
+      "name": "Remember the cursor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Every minute": {
+      "main": [
+        [
+          {
+            "node": "Read the cursor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read the cursor": {
+      "main": [
+        [
+          {
+            "node": "Read the outbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read the outbox": {
+      "main": [
+        [
+          {
+            "node": "One email per recipient",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One email per recipient": {
+      "main": [
+        [
+          {
+            "node": "Send the email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send the email": {
+      "main": [
+        [
+          {
+            "node": "Remember the cursor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "pinData": {},
+  "tags": []
+}

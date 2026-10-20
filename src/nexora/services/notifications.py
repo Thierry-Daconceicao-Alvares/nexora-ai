@@ -17,7 +17,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from nexora.db.models import AuditEventRow, DecisionRow, RequestRow, UserRow
@@ -110,6 +110,12 @@ def _message(kind: str, data: dict[str, Any], reason: str | None) -> tuple[str, 
 
 
 def outbox(session: Session, after: int, ui_url: str, limit: int = 100) -> dict[str, Any]:
+    # A cursor beyond the last event means the database was reset while n8n
+    # kept its cursor: start again from the beginning rather than miss events.
+    last = session.scalar(select(func.max(AuditEventRow.id))) or 0
+    reset = after > last
+    if reset:
+        after = 0
     events = list(
         session.scalars(
             select(AuditEventRow)
@@ -142,7 +148,7 @@ def outbox(session: Session, after: int, ui_url: str, limit: int = 100) -> dict[
             }
         )
     cursor = events[-1].id if events else after
-    return {"next_cursor": cursor, "items": items}
+    return {"next_cursor": cursor, "cursor_reset": reset, "items": items}
 
 
 def reminders(
@@ -178,6 +184,10 @@ def reminders(
     return items
 
 
+def _count(number: int, noun: str) -> str:
+    return f"{number} {noun}{'' if number == 1 else 's'}"
+
+
 def digest(session: Session, now: datetime, days: int, ui_url: str) -> dict[str, Any]:
     figures = metrics.compute(session, now, days)
     r, q, d, ai = figures["requests"], figures["queue"], figures["decisions"], figures["ai"]
@@ -187,12 +197,21 @@ def digest(session: Session, now: datetime, days: int, ui_url: str) -> dict[str,
     ]
     rules = ", ".join(f"{k} ({v})" for k, v in figures["exceptions"]["by_rule"].items())
     cost = ai["estimated_cost_usd"]
+    names = {
+        "approve": "approved",
+        "reject": "rejected",
+        "request_info": "information requested",
+        "escalate": "escalated",
+    }
+    actions = ", ".join(f"{v} {names.get(k, k)}" for k, v in d["by_action"].items())
+    median = d["cycle_time_hours_median"]
     lines = [
         f"Purchase requests of the last {days} days",
         "",
         f"Submitted: {r['total']} for EUR {r['amount_eur']:,.2f}",
-        f"Decisions: {d['total']} ({', '.join(f'{k} {v}' for k, v in d['by_action'].items())})",
-        f"Median time to a final decision: {d['cycle_time_hours_median']} hours",
+        f"Decisions: {d['total']}" + (f" ({actions})" if actions else ""),
+        "Median time to a final decision: "
+        + (f"{median} hours" if median is not None else "no request closed yet"),
         f"Waiting now: {q['awaiting_review']} for review, {q['awaiting_approver']} for "
         f"approval, {q['info_requested']} for the requester",
         f"Findings by rule: {rules or 'none'}",
@@ -203,8 +222,8 @@ def digest(session: Session, now: datetime, days: int, ui_url: str) -> dict[str,
     ]
     return {
         "recipients": approvers,
-        "subject": f"[NEXORA] Weekly digest: {r['total']} requests, {q['awaiting_approver']} "
-        "waiting for approval",
+        "subject": f"[NEXORA] Weekly digest: {_count(r['total'], 'request')}, "
+        f"{q['awaiting_approver']} waiting for approval",
         "text": "\n".join(lines),
         "metrics": figures,
     }
