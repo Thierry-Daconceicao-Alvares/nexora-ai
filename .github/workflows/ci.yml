@@ -80,10 +80,19 @@ jobs:
         run: curl -fsS http://localhost:8501/_stcore/health
       - name: n8n workflows end to end (email intake, notifications, digest)
         run: |
+          set -o pipefail
           pip install httpx==0.28.1
           python3 scripts/e2e_n8n.py --api http://localhost:8000 --mailpit http://localhost:8025 \
             --smtp localhost:1025 \
-            --digest-command "docker compose exec -T -e N8N_RUNNERS_BROKER_PORT=5690 n8n n8n execute --id 9b7dfceefef156"
+            --digest-command "docker compose exec -T -e N8N_RUNNERS_BROKER_PORT=5690 n8n n8n execute --id 9b7dfceefef156" \
+            2>&1 | tee e2e.txt
+      - if: always()
+        name: Report in the job summary
+        run: |
+          {
+            echo '### n8n end to end'; echo '```'; cat e2e.txt 2>/dev/null; echo '```'
+            echo '### n8n log (last lines)'; echo '```'; docker compose logs --no-color --tail 60 n8n; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - if: failure()
         run: docker compose logs
       - run: docker compose down -v
