@@ -14,6 +14,8 @@ PRICES_CHECKED_ON = "2026-10-20"
 # model -> (input, output) in USD per million tokens
 PRICES: dict[str, tuple[float, float]] = {
     "mistral-small": (0.15, 0.60),  # Mistral Small 4
+    "ministral-14b": (0.20, 0.20),
+    "ministral-8b": (0.15, 0.15),
     "gemini-3.5-flash-lite": (0.30, 2.50),
     # Introductory price until 31 December 2026.
     "gemini-3.8-flash": (0.75, 3.75),

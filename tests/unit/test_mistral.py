@@ -104,6 +104,13 @@ def test_a_rejected_key_is_not_retried():
     assert len(sent) == 1
 
 
+def test_a_model_outside_the_plan_is_reported_as_such():
+    provider, sent = provider_answering((403, {"type": "tier_not_allowed"}))
+    with pytest.raises(LLMError, match="not be included in the plan"):
+        provider.generate("s", "u", {})
+    assert len(sent) == 1
+
+
 def test_an_unexpected_body_is_an_error():
     provider, _ = provider_answering((200, {"choices": []}))
     with pytest.raises(LLMError, match="unexpected format"):

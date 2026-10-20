@@ -116,8 +116,13 @@ class MistralProvider:
                 logger.warning(
                     "Mistral returned HTTP %s: %s", response.status_code, response.text[:300]
                 )
-                if response.status_code in (401, 403):
+                if response.status_code == 401:
                     raise LLMError("Mistral rejected the API key. Check MISTRAL_API_KEY.")
+                if response.status_code == 403:
+                    raise LLMError(
+                        "Mistral refused the call (HTTP 403): the model may not be "
+                        "included in the plan of this key."
+                    )
                 if response.status_code not in RETRYABLE_STATUS_CODES or last:
                     raise LLMError(f"Mistral returned HTTP {response.status_code}.")
                 wait = response.headers.get("retry-after")
