@@ -13,6 +13,9 @@ from client import ApiError
 from views.new_request import request_form
 
 PROVIDER_NOTE = {
+    "recorded": "Recorded answer: this demo request was analysed once by the model named "
+    "here; the public demo replays that answer and makes no model call. It went through "
+    "the same checks in code as a live answer.",
     "scripted": "Scripted stand-in: no language model is configured, the text is assembled "
     "from the rule results.",
 }

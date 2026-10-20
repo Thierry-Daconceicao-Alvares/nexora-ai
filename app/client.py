@@ -57,10 +57,8 @@ class Api:
         else:
             from fastapi.testclient import TestClient
 
-            from nexora.api.app import create_app
-
             self.mode = "embedded"
-            self._http = transport or TestClient(create_app())
+            self._http = transport or TestClient(embedded_app())
 
     def call(self, method: str, path: str, token: str, **kwargs: Any) -> Any:
         headers = {"Authorization": f"Bearer {token}", **kwargs.pop("headers", {})}
@@ -80,6 +78,29 @@ class Api:
 
     def put(self, path: str, token: str, **kwargs: Any) -> Any:
         return self.call("PUT", path, token, **kwargs)
+
+
+def embedded_app() -> Any:
+    """The API inside the interface process (demo mode): the analyses of the
+    demo requests are replayed from a real model's recorded answers, any other
+    request is analysed by the configured provider (the scripted stand-in
+    without a key). The demo data is added when the database is empty."""
+    from datetime import UTC, datetime
+
+    from fastapi.testclient import TestClient
+
+    from nexora import demo
+    from nexora.api.app import create_app
+    from nexora.llm import build_provider
+    from nexora.llm.replay import RECORDINGS, ReplayProvider
+
+    settings = Settings()
+    provider = ReplayProvider.from_file(RECORDINGS, fallback=build_provider(settings))
+    clock: dict[str, datetime | None] = {"now": None}
+    app = create_app(settings, clock=lambda: clock["now"] or datetime.now(UTC), provider=provider)
+    demo.seed(TestClient(app), clock, log=lambda _: None)
+    clock["now"] = None  # from now on, real time
+    return app
 
 
 def _error(response: httpx.Response) -> ApiError:

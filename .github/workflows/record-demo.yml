@@ -1,0 +1,55 @@
+# Records the answers of a real model for the demo requests
+# (data/demo/recorded_analyses.jsonl), which the public demo replays without
+# any model call. Started manually; needs the MISTRAL_API_KEY secret.
+name: Record the demo analyses
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Mistral model id (empty for the default)
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - name: Analyse the demo requests with the model and record the answers
+        env:
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          NEXORA_LLM_PROVIDER: mistral
+          MODEL: ${{ inputs.model }}
+        run: |
+          if [ -n "$MODEL" ]; then export NEXORA_MISTRAL_MODEL="$MODEL"; fi
+          python scripts/seed_demo.py --database sqlite:///record.db --record
+      - name: Replay them: the demo must load without a model
+        run: |
+          python scripts/seed_demo.py --database sqlite:///replay.db
+          python - <<'PY'
+          import sqlite3
+          rows = sqlite3.connect("replay.db").execute(
+              "select provider, verification from ai_analyses").fetchall()
+          print(rows)
+          assert rows and all(p == "recorded" for p, _ in rows), rows
+          PY
+      - name: Commit the recordings
+        env:
+          AUTHOR_NAME: Thierry Daconceição Alvares
+          AUTHOR_EMAIL: 91541305+Thierry-Daconceicao-Alvares@users.noreply.github.com
+        run: |
+          git config user.name "$AUTHOR_NAME"
+          git config user.email "$AUTHOR_EMAIL"
+          git add data/demo/recorded_analyses.jsonl
+          git commit -m "Record the demo analyses (run ${{ github.run_id }})"
+          git pull --rebase origin main
+          git push origin HEAD:main

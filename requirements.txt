@@ -1,0 +1,3 @@
+# Used by Streamlit Community Cloud, which installs this file for the public
+# demo. For local work: pip install -e ".[ui,dev]" (versions pinned in pyproject.toml)
+-e .[ui]

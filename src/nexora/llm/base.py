@@ -23,6 +23,8 @@ class LLMResult:
     input_tokens: int = 0
     output_tokens: int = 0  # thinking tokens included: they are billed as output
     latency_ms: float = 0.0
+    # Set by a provider that delegates (replay of recorded answers): who answered.
+    provider: str | None = None
 
 
 class LLMProvider(Protocol):

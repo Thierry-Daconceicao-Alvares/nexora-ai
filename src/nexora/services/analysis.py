@@ -427,6 +427,7 @@ def analyse(
             record.error = str(error)
             break
         record.model = answer.model
+        record.provider = answer.provider or provider.name
         record.latency_ms += answer.latency_ms
         record.input_tokens += answer.input_tokens
         record.output_tokens += answer.output_tokens
