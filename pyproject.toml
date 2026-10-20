@@ -25,6 +25,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# The Streamlit interface (app/).
+ui = [
+    "streamlit==1.66.0",
+    "altair==6.3.0",
+]
+# Browser tests of the interface (tests/ui); then: playwright install chromium
+e2e = [
+    "playwright==1.64.0",
+]
 dev = [
     "pytest==9.1.1",
     "httpx2==2.15.1",
@@ -53,3 +62,7 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+
+[tool.ruff.lint.isort]
+# The interface modules in app/ import each other by name (Streamlit runs app/).
+known-first-party = ["nexora", "tests", "client", "state", "ui", "views"]

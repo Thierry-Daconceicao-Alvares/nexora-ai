@@ -16,7 +16,8 @@ from sqlalchemy.orm import Session
 
 from nexora.api import schemas as out
 from nexora.config import Settings, get_settings
-from nexora.db.models import AuditEventRow, RequestRow
+from nexora.db.models import AuditEventRow, ReferencePriceRow, RequestRow, SupplierRow, UserRow
+from nexora.db.repository import known_categories
 from nexora.db.session import (
     make_engine,
     make_session_factory,
@@ -26,6 +27,7 @@ from nexora.db.session import (
 )
 from nexora.domain.models import Role, User
 from nexora.domain.rules_config import load_rules
+from nexora.domain.schemas import AttachmentKind
 from nexora.domain.workflow import DECIDERS
 from nexora.llm import LLMProvider, build_provider
 from nexora.services import csv_import, intake, metrics, notifications, review
@@ -293,6 +295,43 @@ def create_app(
             session, actor, request_id, body.action, body.reason, body.version, clock()
         )
         return out.DecisionResult(decision=out.Decision.of(decision), status=decision.to_status)
+
+    @app.get("/reference", tags=["reference"])
+    def reference(actor: ActorDep, session: SessionDep) -> dict[str, Any]:
+        """Lists for the request form: departments, currencies, suppliers,
+        categories, catalogue items, attachment kinds and the signed-in user."""
+        suppliers = session.scalars(select(SupplierRow).order_by(SupplierRow.id))
+        items = session.scalars(select(ReferencePriceRow).order_by(ReferencePriceRow.item_code))
+        return {
+            "user": {
+                "id": actor.id,
+                "name": actor.name,
+                "email": actor.email,
+                "role": actor.role.value,
+                "department": actor.department,
+            },
+            "departments": rule_set.departments,
+            "currencies": list(rule_set.fx_rates_to_eur),
+            "categories": sorted(known_categories(session)),
+            "attachment_kinds": [k.value for k in AttachmentKind],
+            "suppliers": [
+                {"id": s.id, "name": s.name, "status": s.status, "categories": s.categories}
+                for s in suppliers
+            ],
+            "items": [
+                {
+                    "item_code": i.item_code,
+                    "category": i.category,
+                    "description": i.description,
+                    "unit_price": float(i.unit_price),
+                    "currency": i.currency,
+                }
+                for i in items
+            ],
+            "users": {
+                u.id: {"name": u.name, "role": u.role} for u in session.scalars(select(UserRow))
+            },
+        }
 
     @app.get("/metrics", tags=["dashboard"])
     def get_metrics(

@@ -1,0 +1,58 @@
+# Theme of the NEXORA AI interface: a petrol-night console, one blue accent.
+[theme]
+base = "dark"
+primaryColor = "#3987e5"
+backgroundColor = "#152029"
+secondaryBackgroundColor = "#1c2b36"
+textColor = "#e7eef3"
+borderColor = "#314656"
+showWidgetBorder = true
+baseRadius = "6px"
+# Fonts served by the app itself (SIL Open Font License, see app/static/fonts).
+font = "NexoraText, sans-serif"
+headingFont = "NexoraDisplay, sans-serif"
+linkColor = "#7fb3f0"
+
+[[theme.fontFaces]]
+family = "NexoraText"
+url = "app/static/fonts/source-sans-3-latin-400-normal.woff2"
+weight = 400
+
+[[theme.fontFaces]]
+family = "NexoraText"
+url = "app/static/fonts/source-sans-3-latin-600-normal.woff2"
+weight = 600
+
+[[theme.fontFaces]]
+family = "NexoraText"
+url = "app/static/fonts/source-sans-3-latin-700-normal.woff2"
+weight = 700
+
+[[theme.fontFaces]]
+family = "NexoraDisplay"
+url = "app/static/fonts/barlow-semi-condensed-latin-500-normal.woff2"
+weight = 500
+
+[[theme.fontFaces]]
+family = "NexoraDisplay"
+url = "app/static/fonts/barlow-semi-condensed-latin-600-normal.woff2"
+weight = 600
+
+[[theme.fontFaces]]
+family = "NexoraDisplay"
+url = "app/static/fonts/barlow-semi-condensed-latin-700-normal.woff2"
+weight = 700
+
+[theme.sidebar]
+backgroundColor = "#101a22"
+secondaryBackgroundColor = "#1c2b36"
+
+[server]
+headless = true
+enableStaticServing = true
+
+[browser]
+gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"
