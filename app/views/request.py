@@ -55,6 +55,27 @@ def _header(detail: dict, users: dict) -> None:
         )
 
 
+def _details(detail: dict) -> None:
+    """What the requester wrote, shown as text: the justification is where an
+    instruction aimed at the AI would be, and the reviewer has to read it."""
+    st.subheader("The request")
+    category = detail["item_category"].replace("_", " ")
+    item = f", item {html.escape(detail['item_code'])}" if detail.get("item_code") else ""
+    attachments = ", ".join(
+        f"{a['kind'].replace('_', ' ')} ({html.escape(a['file_name'])})"
+        for a in detail["attachments"]
+    )
+    st.markdown(
+        f'<p class="nx-meta">{float(detail["quantity"]):g} \u00d7 '
+        f"{ui.money(detail['unit_price'], detail['currency'])}, {html.escape(category)}{item}"
+        f"{', CapEx' if detail['is_capex'] else ''}. "
+        f"Attachments: {attachments or 'none'}.</p>"
+        f'<div class="nx-quote" style="margin-bottom:1.2rem">'
+        f"{html.escape(detail['justification'])}</div>",
+        unsafe_allow_html=True,
+    )
+
+
 def _checks(detail: dict) -> None:
     st.subheader("What the checks found")
     rules = [c for c in detail["checks"] if c["stage"] != "validation"]
@@ -65,7 +86,7 @@ def _checks(detail: dict) -> None:
     else:
         st.success("Every rule passed: no finding on this request.")
     passed = [c for c in rules if c["outcome"] == "pass"]
-    with st.expander(f"{len(passed)} checks passed"):
+    with st.expander(ui.plural(len(passed), "check") + " passed"):
         for c in passed:
             st.markdown(f"- **{c['rule_id'].replace('_', ' ').capitalize()}**: {c['message']}")
 
@@ -111,7 +132,9 @@ def _analysis(detail: dict) -> None:
         for item in output["missing_information"]:
             st.markdown(f"- {item}")
     if analysis["issues"]:
-        with st.expander(f"{len(analysis['issues'])} issues found when checking the analysis"):
+        with st.expander(
+            ui.plural(len(analysis["issues"]), "issue") + " found when checking the analysis"
+        ):
             for issue in analysis["issues"]:
                 st.markdown(f"- `{issue['code']}`: {issue['detail']}")
     if analysis["citations"]:
@@ -239,6 +262,7 @@ def render() -> None:
     _completion(detail)
     main, side = st.columns([3, 2], gap="large")
     with main:
+        _details(detail)
         _checks(detail)
         _analysis(detail)
     with side:

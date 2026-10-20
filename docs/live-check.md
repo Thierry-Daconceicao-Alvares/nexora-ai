@@ -4,7 +4,7 @@ Six scenario requests sent through the full pipeline with a real model, by the
 [live check workflow](../.github/workflows/live-check.yml)
 ([`scripts/live_check.py`](../scripts/live_check.py)). This is a smoke test of the
 integration on one run, not an evaluation: the labelled evaluation with baselines
-is Phase 7.
+is in [evaluation.md](evaluation.md).
 
 **Run:** 20 October 2026, GitHub Actions run 39415598965, Mistral free plan,
 model `ministral-14b-latest`, prompt `analysis-v1`.

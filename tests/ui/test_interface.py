@@ -172,3 +172,21 @@ def test_every_page_opens_for_every_role(app_url, browser, person, pages):
         page.get_by_role("heading", name=name).first.wait_for()
         no_exception(page)
     page.close()
+
+
+def test_the_signed_in_person_stays_after_opening_a_request(app_url, browser):
+    # Regression: the sidebar choice was a widget key, dropped by Streamlit when
+    # the page changed, so a request opened from Claire's queue was shown with
+    # Karim's permissions and without her decision panel.
+    page = open_as(browser, app_url, "Claire Dubois")
+    page.get_by_text("Machining of 400 flanges").first.wait_for(state="attached")
+    page.wait_for_timeout(800)
+    grid = page.locator("[data-testid=stDataFrame]").first.bounding_box()
+    page.mouse.click(grid["x"] + 24, grid["y"] + 35 + 17)  # the first row of her queue
+    page.get_by_text("What the checks found").wait_for()
+    page.get_by_role("button", name="Approve the request").wait_for()
+    assert (
+        page.get_by_text("Send to the Head of Procurement", exact=True).count() == 0
+    )  # not a reviewer
+    no_exception(page)
+    page.close()

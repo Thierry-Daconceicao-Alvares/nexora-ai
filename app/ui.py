@@ -171,3 +171,8 @@ def verification_chip(status: str | None) -> str:
         return chip("#8b98a5", "Not available")
     color, label, _ = VERIFICATION[status]
     return chip(color, label)
+
+
+def plural(count: int, noun: str) -> str:
+    """ "1 issue", "2 issues"."""
+    return f"{count} {noun}" + ("" if count == 1 else "s")

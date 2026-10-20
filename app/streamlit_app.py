@@ -28,12 +28,20 @@ with st.sidebar:
     st.caption("Purchase request review for Nexora Industries, a fictional company.")
     people = state.all_personas()
     labels = {p.id: f"{p.name}, {ROLE_LABEL[p.role].lower()}" for p in people}
+    # The choice is kept under its own key: Streamlit drops the state of a widget
+    # key when the page changes, which would sign the user back in as the default.
+    st.session_state.setdefault("persona_id", "u-karim")
+
+    def _sign_in() -> None:
+        st.session_state.persona_id = st.session_state.persona_choice
+
     st.selectbox(
         "Signed in as",
         options=list(labels),
         format_func=labels.get,
-        key="persona_id",
-        index=list(labels).index(st.session_state.get("persona_id", "u-karim")),
+        key="persona_choice",
+        index=list(labels).index(st.session_state.persona_id),
+        on_change=_sign_in,
         help="Demo users. Each one has the permissions of its role, checked by the API.",
     )
 

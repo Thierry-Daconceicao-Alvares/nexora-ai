@@ -2,11 +2,13 @@
 
 **AI-assisted review of purchase requests: deterministic checks, cited explanations, human decisions and a full audit trail.**
 
-> **Status: Phase 8 of 9.** Requests arrive by form, CSV file, API or email; they are validated, checked against the purchasing rules, screened, analysed by a language model with cited policies, verified in code, routed, and decided in a review interface by the people whose role allows it; n8n handles the emails. It is evaluated on a labelled set, failures included. Nothing below describes a feature that is not implemented and tested.
+> **Status: complete.** Requests arrive by form, CSV file, API or email; they are validated, checked against the purchasing rules, screened, analysed by a language model with cited policies, verified in code, routed, and decided in a review interface by the people whose role allows it; n8n handles the emails. It is evaluated on a labelled set, failures included. Nothing below describes a feature that is not implemented and tested.
 
 **[Try the public demo](https://nexora-procurement.streamlit.app)**: the interface with its API running inside it, on synthetic requests. Choose who you are in the sidebar. The AI analyses shown there were recorded from Mistral (`ministral-14b-latest`) by a [workflow](.github/workflows/record-demo.yml) and are replayed; a request you submit yourself is analysed by the scripted stand-in, since the demo holds no API key. Every visitor shares the same demo database, which starts again from the demo requests when the app restarts.
 
-![The review screen: findings, AI analysis, decision panel](docs/images/review.png)
+![A 70-second walkthrough: a request whose justification tries to instruct the AI, the findings, the verified analysis, the buyer's and the approver's decisions, the dashboard](docs/media/nexora-demo.gif)
+
+*70 seconds, no sound: [MP4 version](docs/media/nexora-demo.mp4). Recorded from the demo by [`scripts/capture_media.py`](scripts/capture_media.py), which also adds the captions.*
 
 NEXORA AI is an engineering project built around a real business problem: procurement teams spend their time on checks a machine can do (missing fields, duplicates, prices far from the usual, amounts above an approval threshold, unknown suppliers, missing quotes) and rarely write down why a request was approved. It runs on synthetic data for **Nexora Industries, a fictional industrial company**; the purchasing policies it applies are the synthetic documents of [Enterprise AI Knowledge Assistant](https://github.com/Thierry-Daconceicao-Alvares/enterprise-ai-knowledge-assistant). It is not used by a real company, and every figure it reports comes from its test environment.
 
@@ -114,18 +116,18 @@ streamlit run app/streamlit_app.py
 
 Demo tokens (not secrets, listed in [`config/demo_users.yaml`](config/demo_users.yaml)): `demo-sophie` and `demo-marc` (requesters), `demo-karim` (reviewer), `demo-claire` (approver), `demo-intake` (n8n), `demo-admin`.
 
-| Queue | Dashboard |
-|---|---|
-| ![Queue](docs/images/queue.png) | ![Dashboard](docs/images/dashboard.png) |
+| Queue | Review | Dashboard |
+|---|---|---|
+| ![Queue](docs/images/queue.png) | ![Review](docs/images/review.png) | ![Dashboard](docs/images/dashboard.png) |
 
 ## Tests
 
 ```bash
-pytest          # 177 tests: validation, rules, screening, retrieval, verification, injection,
+pytest          # 180 tests: validation, rules, screening, retrieval, verification, injection,
                 # review workflow and permissions, concurrency, migrations, feeds, CSV, API,
                 # and the scripted evaluation on the labelled set
 pip install -e ".[ui,e2e]" && playwright install chromium
-pytest -m ui tests/ui   # 5 browser tests: submit, ask, complete, approve; every page
+pytest -m ui tests/ui   # 6 browser tests: submit, ask, complete, approve; every page; the signed-in person kept across pages
 ruff check .
 ```
 
@@ -154,8 +156,8 @@ CI also starts the whole Docker Compose stack and runs [`scripts/e2e_n8n.py`](sc
 | 5. Approvals and audit | Review decisions, server-side authorisation, migrations | Done |
 | 6. Interface and n8n | Dashboard, review screens, email intake, notifications, reminders | Done |
 | 7. Evaluation | Labelled scenarios, baselines, latency and cost | Done |
-| 8. Deployment | [Public demo](https://nexora-procurement.streamlit.app), setup from a clean clone | **Done** |
-| 9. Launch | Screenshots, video | Planned |
+| 8. Deployment | [Public demo](https://nexora-procurement.streamlit.app), setup from a clean clone | Done |
+| 9. Launch | Screenshots, video | **Done** |
 
 ## License
 
