@@ -286,3 +286,11 @@ def test_the_spend_category_must_come_from_the_list(hits):
     assert record.verification == "corrected"
     schema = response_schema(categories)
     assert schema["properties"]["spend_category"]["enum"] == categories
+
+
+def test_the_model_is_given_todays_date(hits):
+    from datetime import date
+
+    prompt = build_user_prompt(REQUEST, RESULTS, hits, today=date(2026, 10, 20))
+    assert '<context>\n{\n "today": "2026-10-20"\n}\n</context>' in prompt
+    assert prompt.index("<context>") < prompt.index("<untrusted_request>")

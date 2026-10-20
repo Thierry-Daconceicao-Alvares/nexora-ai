@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
 
@@ -32,7 +33,9 @@ from nexora.llm.base import LLMError, LLMProvider
 from nexora.llm.costs import estimate_cost_usd
 from nexora.services.retrieval import Hit
 
-PROMPT_VERSION = "analysis-v2"  # v2: spend category chosen from a closed list
+# v2: spend category chosen from a closed list.
+# v3: the model is given today's date (v2 judged dates against its own idea of today).
+PROMPT_VERSION = "analysis-v3"
 MAX_ATTEMPTS = 2  # one retry when the answer does not match the schema
 
 Action = Literal["approve", "request_info", "escalate", "reject"]
@@ -65,6 +68,7 @@ You assist procurement reviewers at Nexora Industries, a fictional industrial co
 You analyse one purchase request that deterministic rules have already checked.
 
 What you receive:
+- <context>: today's date. Judge every date of the request against it.
 - <rule_results>: the result of every rule. They are facts: never contradict them.
 - <policy_passages>: the only policy text you may rely on. Each passage has an id
   such as "NX-PUR-001 §5".
@@ -106,6 +110,7 @@ def build_user_prompt(
     results: list[CheckResult],
     hits: list[Hit],
     categories: list[str] | None = None,
+    today: date | None = None,
 ) -> str:
     rule_results = [
         {
@@ -127,7 +132,10 @@ def build_user_prompt(
         }
         for h in hits
     ]
-    blocks = [
+    blocks = []
+    if today:
+        blocks.append(_block("context", {"today": today.isoformat()}))
+    blocks += [
         _block("rule_results", rule_results),
         _block("policy_passages", passages),
     ]
@@ -346,8 +354,9 @@ def analyse(
     results: list[CheckResult],
     hits: list[Hit],
     categories: list[str] | None = None,
+    today: date | None = None,
 ) -> AnalysisRecord:
-    user_prompt = build_user_prompt(request, results, hits, categories)
+    user_prompt = build_user_prompt(request, results, hits, categories, today)
     record = AnalysisRecord(status="unavailable", provider=provider.name, model=provider.model)
     schema = response_schema(categories)
     output = None

@@ -150,6 +150,8 @@ def evaluate(
             "id": record["id"],
             "scenario": record["scenario"],
             "user": record["user"],
+            "is_capex": bool(record["payload"].get("is_capex")),
+            "catalogue_item": bool(record["payload"].get("item_code")),
             "expected": record["expected"],
             "status_code": response.status_code,
             "latency_ms": round(latency, 1),
@@ -456,7 +458,12 @@ def metrics(run: Run) -> dict[str, Any]:
                     supported += 1
                 else:
                     citation_failures.append({"id": r["id"], "finding": rule, "citation": c})
-        allowed = set(labels["recommendation"])
+        rec = labels["recommendation"]
+        allowed = set(rec["always"])
+        if r.get("is_capex"):
+            allowed |= set(rec["capex"])
+        if r.get("catalogue_item"):
+            allowed |= set(rec["catalogue_item"])
         for rule in r["flags"]:
             allowed |= set(labels["findings"].get(rule, []))
         for c in r.get("recommendation_citations") or []:
@@ -504,6 +511,7 @@ def metrics(run: Run) -> dict[str, Any]:
         "provider": run.provider,
         "model": run.model,
         "requests": len(rows),
+        "labels_version": labels.get("version", 1),
         "criteria": {
             "1_malformed_rejected": {
                 "target": "100% of the invalid cases",

@@ -1,8 +1,17 @@
-# Labels for the citation check of the evaluation: for each finding, the
-# Nexora policy passages that support it. A citation outside this list counts
-# as not supporting the statement, even if the passage was retrieved.
-# Written from the policies in data/knowledge_base/, not from the system's
-# output.
+# Labels for the citation check of the evaluation: the Nexora policy passages
+# that support each statement. A citation outside these lists counts as not
+# supporting, even if the passage was retrieved. Written from the policies in
+# data/knowledge_base/, not from the system's output.
+#
+# Version 2 (20 October 2026). Version 1 let a recommendation cite only the
+# passages of its findings. The first run with a model showed that this
+# rejected legitimate citations: approving a request with three quotes "as
+# NX-PUR-001 §5 requires" cites the sourcing policy although no sourcing
+# finding exists. A recommendation may now cite the policy of every rule that
+# applies to the request, passed or not. The run made with version 1 is kept
+# as it was published (eval/results/2026-10-20-mistral-ministral-14b-latest).
+version: 2
+
 findings:
   supplier_status: ["NX-PUR-003 §1", "NX-PUR-003 §5", "NX-PUR-003 §7", "NX-PUR-009 §2"]
   sourcing_evidence: ["NX-PUR-001 §5", "NX-PUR-001 §6", "NX-PUR-009 §3"]
@@ -11,5 +20,12 @@ findings:
   split_purchase: ["NX-PUR-001 §5"]
   duplicate_request: []        # no Nexora policy covers duplicate requisitions
   instruction_like_text: []    # not a policy matter
-# Passages a recommendation may rest on, in addition to those of its findings.
-recommendation: ["NX-PUR-002 §2", "NX-PUR-002 §5", "NX-PUR-009 §3"]
+
+# A recommendation may rest on the approval rules, and on the passages of the
+# rules that apply to the request: always supplier status and sourcing; CapEx
+# for a capital expenditure; price for a catalogue item; plus its findings.
+recommendation:
+  always: ["NX-PUR-002 §2", "NX-PUR-002 §5", "NX-PUR-009 §3",
+           "NX-PUR-003 §1", "NX-PUR-009 §2", "NX-PUR-001 §5", "NX-PUR-001 §6"]
+  capex: ["NX-PUR-002 §3"]
+  catalogue_item: ["NX-PUR-005 §2", "NX-PUR-002 §4"]
