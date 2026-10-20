@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import sys
 import tempfile
 from datetime import UTC, datetime
@@ -81,6 +82,8 @@ def main() -> int:
     parser.add_argument("--out", type=Path, default=Path("live-check.json"))
     parser.add_argument("--provider", choices=["mistral", "gemini", "scripted"], default="mistral")
     args = parser.parse_args()
+    # Provider warnings (HTTP status and error message, never the key) go to the log.
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
 
     workdir = Path(tempfile.mkdtemp())
     settings = Settings(database_url=f"sqlite:///{workdir / 'live.db'}", llm_provider=args.provider)
@@ -115,6 +118,7 @@ def main() -> int:
             f"{name:34} {row['status']:11} {str(row['verification']):10} "
             f"{str(row['recommendation']):12} {row['latency_ms']:>7.0f} ms  "
             f"{', '.join(row['citations']) or '-'}"
+            + (f"  error: {row['error']}" if row["error"] else "")
         )
     args.out.write_text(json.dumps(rows, indent=2, ensure_ascii=False), encoding="utf-8")
     return 1 if failures else 0
