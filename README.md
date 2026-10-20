@@ -2,7 +2,7 @@
 
 **AI-assisted review of purchase requests: deterministic checks, cited explanations, human decisions and a full audit trail.**
 
-> **Status: work in progress (Phase 6 of 9).** Requests arrive by form, CSV file, API or email; they are validated, checked against the purchasing rules, screened, analysed by a language model with cited policies, verified in code, routed, and decided in a review interface by the people whose role allows it; n8n handles the emails. The labelled evaluation, the public demo and the launch come next. Nothing below describes a feature that is not implemented and tested.
+> **Status: work in progress (Phase 7 of 9).** Requests arrive by form, CSV file, API or email; they are validated, checked against the purchasing rules, screened, analysed by a language model with cited policies, verified in code, routed, and decided in a review interface by the people whose role allows it; n8n handles the emails. It is evaluated on a labelled set, failures included. The public demo and the launch come next. Nothing below describes a feature that is not implemented and tested.
 
 ![The review screen: findings, AI analysis, decision panel](docs/images/review.png)
 
@@ -50,6 +50,25 @@ The reviewer sees the verification status, the list of issues and the cited pass
 **Providers.** With a `MISTRAL_API_KEY`, Mistral (`ministral-14b-latest`, served on Mistral's free plan) does the analysis; Gemini is also supported (`GEMINI_API_KEY`). Both sit behind one interface, with a strict JSON schema, a timeout and bounded retries. Without a key, a **scripted stand-in** fills the same JSON from the rule results with templates, so the whole pipeline runs with no account and no network; it is not a language model, and its analyses are labelled `provider: scripted`. The tests use the scripted provider and fake models (an obedient model that follows an injection, a model that is down, answers outside the schema); the Mistral and Gemini providers are tested against mock HTTP and SDK clients.
 
 **Live check.** Six scenario requests through the pipeline with Mistral on 20 October 2026: 6 of 6 answers in the schema at the first attempt and verified, about 3.7 to 7.2 seconds and 1,900 to 3,100 tokens per request (about $0.0005 at list price), no route changed by the model. One earlier run produced an invented quotation, which led to the quotation check. Details, limits and how to reproduce: [docs/live-check.md](docs/live-check.md).
+
+## Evaluation
+
+156 labelled synthetic requests in 30 scenarios, run through the whole application ([method](docs/evaluation.md)). With Mistral (`ministral-14b-latest`, free plan), [prompt v3](eval/results/2026-10-20-mistral-ministral-14b-latest-prompt-v3/report.md):
+
+| Criterion | Target | Result |
+|---|---|---|
+| Malformed requests rejected, with the fields to fix | 100% | 12/12 |
+| Rules and routing as labelled | 100% | 144/144 |
+| Repeated submissions processed once | 0 double records | 0 |
+| Valid end state when the model answers outside the schema or times out | 100% | 288/288 |
+| Spend category above a keyword baseline (95.1%) | above | **94.4%, not met** |
+| Citations supporting the statement | ≥ 90% | **80.4%, not met** |
+| Unsupported figures, quotations, citations and explanations | shown, never hidden | 27 caught and shown to the reviewer |
+| Unauthorised actions blocked | 100% | 54/54 |
+| Decisions audited (who, when, what, why, version, evidence) | 100% | 167/167 |
+| Median time from submission to recommendation; cost | < 10 s; < $0.01 | 6.0 s; $0.00055 |
+
+What it shows: the deterministic part does what the policies say, with or without a model. The model is useful for reading and explaining, not for deciding: on the 61 requests without any finding it suggested approval for only 13, asking for documents the policies do not require, and in 5 cases contradicting the rule results it was given. Its suggestion matches the labels for 65.3% of requests, against 93.8% for the scripted stand-in. Nothing it suggests changes a finding or a route. Details, the prompt change from v2 to v3, and one revision of the citation labels are in [docs/evaluation.md](docs/evaluation.md).
 
 ## The review workflow
 
@@ -101,8 +120,9 @@ Demo tokens (not secrets, listed in [`config/demo_users.yaml`](config/demo_users
 ## Tests
 
 ```bash
-pytest          # 162 tests: validation, rules, screening, retrieval, verification, injection,
-                # review workflow and permissions, concurrency, migrations, feeds, CSV, API
+pytest          # 175 tests: validation, rules, screening, retrieval, verification, injection,
+                # review workflow and permissions, concurrency, migrations, feeds, CSV, API,
+                # and the scripted evaluation on the labelled set
 pip install -e ".[ui,e2e]" && playwright install chromium
 pytest -m ui tests/ui   # 5 browser tests: submit, ask, complete, approve; every page
 ruff check .
@@ -131,9 +151,9 @@ CI also starts the whole Docker Compose stack and runs [`scripts/e2e_n8n.py`](sc
 | 3. Vertical slice | Intake, validation, rules, storage, routing, audit, tests | Done |
 | 4. AI and retrieval | Structured analysis with cited policies, insufficient-evidence handling, injection tests | Done |
 | 5. Approvals and audit | Review decisions, server-side authorisation, migrations | Done |
-| 6. Interface and n8n | Dashboard, review screens, email intake, notifications, reminders | **Done** |
-| 7. Evaluation | Labelled scenarios, baselines, latency and cost | Next |
-| 8. Deployment | Public demo, setup from a clean clone | Planned |
+| 6. Interface and n8n | Dashboard, review screens, email intake, notifications, reminders | Done |
+| 7. Evaluation | Labelled scenarios, baselines, latency and cost | **Done** |
+| 8. Deployment | Public demo, setup from a clean clone | Next |
 | 9. Launch | Screenshots, video | Planned |
 
 ## License

@@ -65,3 +65,68 @@ Or on GitHub: Actions > Evaluate > Run workflow, which commits the report to
 [`eval/results/`](../eval/results). The test suite runs the scripted evaluation
 and requires every criterion that does not depend on a model to pass
 ([`tests/evaluation`](../tests/evaluation)).
+
+## Results (20 October 2026)
+
+Three runs, all published as they came out:
+[scripted stand-in](../eval/results/2026-10-20-scripted/report.md),
+[Mistral, prompt v2](../eval/results/2026-10-20-mistral-ministral-14b-latest-prompt-v2/report.md),
+[Mistral, prompt v3](../eval/results/2026-10-20-mistral-ministral-14b-latest-prompt-v3/report.md).
+The model is `ministral-14b-latest`, the one Mistral's free plan serves.
+
+| Criterion | Target | Scripted stand-in | Mistral, prompt v3 |
+|---|---|---|---|
+| 1. Malformed requests rejected | 100% | 12/12 | 12/12 |
+| 2. Rules and routing as labelled | 100% | 144/144 | 144/144 |
+| 3. Processed once | 0 double records | 0 | 0 |
+| 4. Valid end state, with faults | 100% | 288/288 | 288/288 |
+| 5. Spend category (keyword baseline 95.1%) | above the baseline | 95.1% (it copies the declared category) | **94.4%: not met** |
+| 6. Citations supporting the statement | at least 90% | 205/205 | **238/296 (80.4%): not met** |
+| 7. Unsupported claims | 0 unflagged | none produced | 27 caught and shown (6 analyses unverified); other kinds not measured |
+| 8. Unauthorised actions blocked | 100% | 54/54 | 54/54 |
+| 9. Decisions audited | 100% | 167/167 | 167/167 |
+| 10. Median time and cost | under 10 s, under $0.01 | 0.02 s, $0 | 6.0 s (p90 8.5 s), $0.00055 |
+
+### What the runs show
+
+- **The deterministic part does what the policies say.** Every rule, route,
+  rejection, replay, refusal and audit record matches the labels, with or
+  without a model, and the application stays in a valid state when the model
+  answers outside the schema or not at all.
+- **The model does not decide anything, and that matters.** On the 61 requests
+  with no finding, the model suggested approval for 13 only: it asked for
+  documents the policies do not require of these purchases (supplier
+  certifications meant for direct material suppliers, a catalogue code), and in
+  5 cases it stated that three quotes were missing for amounts below €5,000,
+  contradicting the rule result it was given. The suggested decision matches
+  the labels for 65.3% of the requests, against 93.8% for the scripted
+  stand-in, which maps the most serious finding to a decision. The route and
+  the findings never depend on the model.
+- **Prompt v2 to v3.** v2 did not give the model today's date; it judged the
+  simulated dates of the set against its own and called 20 delivery dates
+  unrealistic. v3 gives the date: 0 such remarks, but the agreement did not
+  improve (68.1% then 65.3%): the dates were not the main cause.
+- **Spend category.** The model recognises more mislabelled requests than the
+  keyword baseline (6 of 7 against 5 of 7; the declared category gets none), but
+  makes errors on correctly declared ones (an automated storage tower filed as
+  automation), so its overall accuracy (94.4%) stays just below the baseline
+  (95.1%).
+- **Citations.** 80.4% of the citations are labelled as supporting. The others
+  cite a retrieved passage that does not govern the finding, most often the
+  "No PO, no pay" section for a supplier finding. The check in code guarantees
+  that a citation was given to the model, not that it is the right one.
+- **Screen.** The four injection phrasings the screen was not tuned on were
+  not flagged; the model treated them as data, never suggested approval, and the
+  routes stayed those of the rules.
+- **Labels.** The citation labels were revised once, after the first run, to
+  let a recommendation cite the policy of a rule it complies with; the reason
+  and the effect (208/281 then 231/281 on that run) are written in
+  [`acceptable_passages.yaml`](../data/evaluation/acceptable_passages.yaml).
+
+### What would come next
+
+A prompt that forbids requirements absent from the passages and the rule
+results, and a check in code that flags a recommendation contradicting a passed
+rule, measured on a **new** labelled set: this set has now been read, and a
+prompt tuned on it would be judged on the cases it was tuned for. A larger
+model than the free plan allows is the other lever.
