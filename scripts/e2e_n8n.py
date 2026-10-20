@@ -78,9 +78,11 @@ def wait_for_email(mailpit: str, to: str, subject_start: str, timeout: int = 180
     sys.exit(1)
 
 
-def check(condition: bool, message: str) -> None:
+def check(condition: bool, message: str, context: object = None) -> None:
     print(("ok    " if condition else "FAIL  ") + message)
     if not condition:
+        if context is not None:
+            print(context)
         sys.exit(1)
 
 
@@ -112,7 +114,12 @@ def main() -> int:
     )
 
     reply = wait_for_email(args.mailpit, SOPHIE, "[NEXORA] Received: PR-2026-07001")
-    check("category buyer" in reply["Text"], "the requester is told who will review")
+    # A category buyer, or the Head of Procurement when a rule finds a possible duplicate.
+    check(
+        "It will be reviewed by" in reply["Text"],
+        "the requester is told who will review",
+        reply["Text"],
+    )
     requests = httpx.get(f"{args.api}/requests", headers=karim).json()
     request = next((r for r in requests if r["external_ref"] == "PR-2026-07001"), None)
     check(request is not None, "the emailed request is stored in NEXORA")
