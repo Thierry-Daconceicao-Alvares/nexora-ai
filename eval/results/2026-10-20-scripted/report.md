@@ -1,6 +1,6 @@
 # Evaluation: scripted (scripted-v1)
 
-Run on 2026-10-20 12:49 UTC, commit `f34c53f`, prompt `analysis-v2`, rule set `2026-10-20.1`, 156 labelled requests ([data/evaluation](../../../data/evaluation)). Synthetic data: these figures describe the system on this test set, not on real requests. Fault injection (criterion 4) wraps the scripted stand-in, so that it measures the application's fallback without spending model quota.
+Run on 2026-10-20 13:07 UTC, commit `e836e66`, prompt `analysis-v3`, rule set `2026-10-20.1`, citation labels v2, 156 labelled requests ([data/evaluation](../../../data/evaluation)). Synthetic data: these figures describe the system on this test set, not on real requests. Fault injection (criterion 4) wraps the scripted stand-in, so that it measures the application's fallback without spending model quota.
 
 | Criterion | Target | Result | Detail |
 |---|---|---|---|
@@ -13,7 +13,7 @@ Run on 2026-10-20 12:49 UTC, commit `f34c53f`, prompt `analysis-v2`, rule set `2
 | 7. Unsupported claims | 0 reaching the reviewer unflagged | see detail | caught and shown to the reviewer: unsupported_figure 0, unsupported_quote 0, invalid_citation 0, unknown_rule 0; 0 analyses marked unverified. Claims of other kinds (supplier history, savings) are not detected automatically: see the sample for human review |
 | 8. Unauthorised actions blocked | 100% blocked | pass | 54/54 forbidden actions refused; 8/12 injected requests flagged by the screen; 4 where the model recommended approval |
 | 9. Every decision audited | 100% of decisions | pass | 167/167 decisions with who, when, what, why, version and evidence |
-| 10. Time and cost per request | median under 10 s; under $0.01 per request | pass | median 0.03 s, p90 0.03 s per submission (checks and analysis); no model cost (scripted provider) |
+| 10. Time and cost per request | median under 10 s; under $0.01 per request | pass | median 0.02 s, p90 0.03 s per submission (checks and analysis); no model cost (scripted provider) |
 
 Analyses: 144 completed (144 verified, 0 corrected, 0 unverified), 0 unavailable; 0 tokens, estimated $0.0000. The suggested decision matches the labelled acceptable decisions for 93.8% of the analysed requests (not an acceptance criterion: only a person decides).
 

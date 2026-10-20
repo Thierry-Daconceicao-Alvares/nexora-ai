@@ -2,15 +2,16 @@
   "meta": {
     "provider": "scripted",
     "model": "scripted-v1",
-    "date": "2026-10-20 12:49 UTC",
-    "commit": "f34c53f",
-    "prompt_version": "analysis-v2",
+    "date": "2026-10-20 13:07 UTC",
+    "commit": "e836e66",
+    "prompt_version": "analysis-v3",
     "rule_set": "2026-10-20.1",
     "pause_s": 0.0
   },
   "provider": "scripted",
   "model": "scripted-v1",
   "requests": 156,
+  "labels_version": 2,
   "criteria": {
     "1_malformed_rejected": {
       "target": "100% of the invalid cases",
@@ -68,8 +69,8 @@
     },
     "10_time_and_cost": {
       "target": "median under 10 s; under $0.01 per request",
-      "value": 0.03,
-      "detail": "median 0.03 s, p90 0.03 s per submission (checks and analysis); no model cost (scripted provider)",
+      "value": 0.02,
+      "detail": "median 0.02 s, p90 0.03 s per submission (checks and analysis); no model cost (scripted provider)",
       "pass": true
     }
   },
