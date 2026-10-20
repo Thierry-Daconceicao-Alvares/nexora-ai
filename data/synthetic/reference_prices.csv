@@ -1,0 +1,16 @@
+item_code,category,description,unit_price,currency
+MRO-BRG-6205,spare_parts,Deep groove ball bearing 6205-2RS,8.40,EUR
+MRO-BRG-6310,spare_parts,Deep groove ball bearing 6310-2RS,31.50,EUR
+MRO-GLV-NIT,ppe,Nitrile chemical-resistant gloves (pair),2.10,EUR
+PPE-HLM-EN397,ppe,Safety helmet EN 397,14.90,EUR
+PPE-SHO-S3,ppe,Safety shoes S3,62.00,EUR
+IT-LAP-STD,it_hardware,Standard business laptop 14 inch,1150.00,EUR
+IT-MON-27,it_hardware,Monitor 27 inch QHD,289.00,EUR
+IT-DOCK-USBC,it_hardware,USB-C docking station,165.00,EUR
+OFF-PAP-A4,office_supplies,A4 copy paper (box of 5 reams),23.50,EUR
+TOOL-TRQ-50,tools,Torque wrench 10-50 Nm,145.00,EUR
+SRV-CAL-GAUGE,calibration_services,Calibration of a pressure gauge,85.00,EUR
+SRV-CLN-HOUR,facility_services,Industrial cleaning (per hour),38.00,EUR
+SRV-ENG-DAY,engineering_services,Senior engineering consultant (per day),980.00,EUR
+SW-CAD-SEAT,software,CAD software licence (one seat for one year),2400.00,EUR
+AUT-PLC-S7,automation,Programmable logic controller CPU,1890.00,EUR

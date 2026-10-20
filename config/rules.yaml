@@ -1,0 +1,75 @@
+# Business rules of NEXORA AI. Every threshold comes from a Nexora purchasing
+# policy (fictional company, synthetic documents in data/knowledge_base/) and
+# names its source. Change a value here, not in the code; bump `version` so
+# that every stored rule result says which rule set produced it.
+version: "2026-10-20.1"
+base_currency: EUR
+
+# Fixed demonstration rates (1 unit of the currency in euros). A real
+# deployment would read the treasury rates of the day.
+fx_rates_to_eur:
+  EUR: 1.0
+  USD: 0.92
+  GBP: 1.17
+
+departments: [Maintenance, Production, Quality, Logistics, IT, Facilities, HSE, Finance, HR]
+
+# NX-PUR-002 section 2: approvers by total commitment, excluding VAT.
+approval_bands:
+  policy_ref: "NX-PUR-002 §2"
+  bands:
+    - { from_eur: 0, approvers: [Budget owner] }
+    - { from_eur: 10000, approvers: [Budget owner, Plant Controller] }
+    - { from_eur: 50000, approvers: [Site Director, Category Manager] }
+    - { from_eur: 250000, approvers: [CPO, CFO] }
+    - { from_eur: 1000000, approvers: [CEO, CPO, CFO] }
+    - { from_eur: 5000000, approvers: [Board, CEO, CPO, CFO] }
+
+# Who reviews the request in NEXORA: a category buyer below this amount, the
+# Head of Procurement (approver role) from it, or when a rule raises a high or
+# critical finding.
+routing:
+  approver_from_eur: 50000
+  approver_from_severity: high
+
+# NX-PUR-001 section 5 and NX-PUR-009 section 3, step 2: sourcing evidence.
+sourcing:
+  policy_ref: "NX-PUR-001 §5"
+  levels:
+    - { from_eur: 0, quotes: 1 }
+    - { from_eur: 5000, quotes: 3 }
+    - { from_eur: 50000, quotes: 3, also: [bid_comparison] }
+    - { from_eur: 250000, quotes: 3, also: [bid_comparison, award_decision] }
+  # A single-source justification replaces the competing quotes (NX-PUR-001 §6).
+  single_source_document: single_source_justification
+
+# NX-PUR-002 section 3: capital expenditure needs an approved CapEx request.
+capex:
+  policy_ref: "NX-PUR-002 §3"
+  document: capex_approval
+
+# Buyer check, not a written policy: distance from the reference catalogue price.
+price_deviation:
+  policy_ref: null
+  medium_pct: 15
+  high_pct: 30
+
+# Same request submitted twice: same requester, supplier and category, amounts
+# within the tolerance and similar descriptions, within the window.
+duplicates:
+  policy_ref: null
+  window_days: 30
+  amount_tolerance_pct: 5
+  min_description_similarity: 0.8
+
+# NX-PUR-001 section 5: splitting a requirement to stay below a threshold is
+# prohibited. Same requester and supplier within the window, each request below
+# a sourcing or approval threshold, together above it.
+splitting:
+  policy_ref: "NX-PUR-001 §5"
+  window_days: 30
+
+# NX-PUR-009 section 2 and NX-PUR-003 section 1: no PO to a supplier that is
+# not active in the vendor master.
+supplier_status:
+  policy_ref: "NX-PUR-003 §1"

@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Lint and tests (SQLite and PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: nexora_test
+          POSTGRES_USER: nexora
+          POSTGRES_PASSWORD: ci-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U nexora -d nexora_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - name: Tests on SQLite
+        run: pytest
+      - name: Tests on PostgreSQL
+        env:
+          NEXORA_TEST_DATABASE_URL: postgresql+psycopg://nexora:ci-only@localhost:5432/nexora_test
+        run: pytest tests/integration
+
+  docker:
+    name: Docker Compose stack starts and answers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker compose up --build -d --wait
+      - name: Submit a request through the running stack
+        run: |
+          curl -fsS http://localhost:8000/health
+          curl -fsS -X POST http://localhost:8000/requests \
+            -H "Authorization: Bearer demo-sophie" -H "Content-Type: application/json" \
+            -d '{"external_ref":"PR-2026-00001","department":"Maintenance","supplier_id":"SUP-0002","item_category":"spare_parts","item_code":"MRO-BRG-6205","description":"Ball bearings 6205-2RS for conveyor line 3","quantity":"20","unit_price":"8.40","currency":"EUR","justification":"Preventive maintenance of conveyor line 3","delivery_date":"2099-01-15","attachments":[{"kind":"quote","file_name":"quote.pdf"}]}' \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['status']=='awaiting_review', d; print(d['status'], d['route'])"
+      - if: failure()
+        run: docker compose logs
+      - run: docker compose down -v

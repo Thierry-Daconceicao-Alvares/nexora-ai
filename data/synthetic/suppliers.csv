@@ -1,0 +1,16 @@
+supplier_id,name,registration_number,status,categories
+SUP-0001,Alpha Industrial Supplies,FR-REG-100001,active,mro_supplies;tools
+SUP-0002,Beta Bearings and Transmission,FR-REG-100002,active,mro_supplies;spare_parts
+SUP-0003,Cobalt IT Services,FR-REG-100003,active,it_hardware;it_services
+SUP-0004,Delta Facility Management,FR-REG-100004,active,facility_services
+SUP-0005,Epsilon Safety Equipment,FR-REG-100005,active,ppe
+SUP-0006,Fennec Logistics,FR-REG-100006,active,logistics_services
+SUP-0007,Gamma Precision Machining,FR-REG-100007,active,spare_parts;machining
+SUP-0008,Helix Engineering Consultants,FR-REG-100008,active,engineering_services
+SUP-0009,Iris Lab Instruments,FR-REG-100009,pending,lab_equipment
+SUP-0010,Jade Office Solutions,FR-REG-100010,active,office_supplies
+SUP-0011,Kappa Automation Systems,FR-REG-100011,active,automation;capital_equipment
+SUP-0012,Lumen Electrical Contractors,FR-REG-100012,blocked,electrical_services
+SUP-0013,Mistral Cleaning Services,FR-REG-100013,active,facility_services
+SUP-0014,Nova Software Licensing,FR-REG-100014,active,software
+SUP-0015,Orion Calibration Services,FR-REG-100015,active,calibration_services

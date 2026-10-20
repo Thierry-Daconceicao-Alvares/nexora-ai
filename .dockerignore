@@ -1,0 +1,7 @@
+.venv
+.git
+*.db
+.env
+tests
+.pytest_cache
+.ruff_cache

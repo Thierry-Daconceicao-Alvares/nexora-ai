@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nexora-ai"
+version = "0.1.0"
+description = "AI-assisted purchase request review: deterministic checks, cited explanations, human decisions, full audit trail."
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Thierry Daconceição Alvares" }]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi==0.151.0",
+    "uvicorn[standard]==0.54.0",
+    "pydantic==2.14.1",
+    "pydantic-settings==2.16.0",
+    "sqlalchemy==2.1.5",
+    "psycopg[binary]==3.3.6",
+    "pyyaml==6.0.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "httpx2==2.15.1",
+    "ruff==0.17.1",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+nexora = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]

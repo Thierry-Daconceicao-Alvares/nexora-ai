@@ -1,0 +1,29 @@
+# Local stack. Phase 3: the API and PostgreSQL. The interface, n8n and Mailpit
+# are added in later phases.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: nexora
+      POSTGRES_USER: nexora
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nexora-local}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexora -d nexora"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    environment:
+      NEXORA_DATABASE_URL: postgresql+psycopg://nexora:${POSTGRES_PASSWORD:-nexora-local}@db:5432/nexora
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db-data:
