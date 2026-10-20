@@ -335,7 +335,7 @@ def create_app(
 
     @app.get("/metrics", tags=["dashboard"])
     def get_metrics(
-        actor: ActorDep, session: SessionDep, days: Annotated[int, Query(ge=1, le=365)] = 30
+        actor: ActorDep, session: SessionDep, days: Annotated[int, Query(ge=1, le=3650)] = 30
     ) -> dict[str, Any]:
         """Figures for the dashboard, computed from the stored data."""
         if actor.role not in {Role.REVIEWER, Role.APPROVER, Role.ADMIN, Role.INTAKE_SERVICE}:

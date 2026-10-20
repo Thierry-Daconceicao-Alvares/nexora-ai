@@ -84,7 +84,9 @@ with st.sidebar:
     st.caption(
         "Connected to the NEXORA API."
         if mode == "http"
-        else "Demo mode: the API runs inside this app."
+        else "Demo mode: the API runs inside this app, with demo requests dated 7 to 20 "
+        "October 2026. Their AI analyses are recorded answers of a real model; a request "
+        "you submit here is analysed by the scripted stand-in."
     )
     st.caption("Synthetic data only. Every figure comes from this environment.")
 

@@ -10,6 +10,7 @@ import streamlit as st
 import state
 from client import ApiError
 
+ALL_TIME = 3650
 SERIES = "#3987e5"  # validated on the dark surface (dataviz validator, single slot)
 SURFACE = "#1c2b36"
 TEXT, MUTED, GRID = "#e7eef3", "#9aacba", "#2a3b48"
@@ -36,6 +37,7 @@ def _axis_config(chart: alt.Chart) -> alt.Chart:
 
 def _daily(figures: dict) -> alt.Chart:
     frame = pd.DataFrame(figures["requests"]["daily"])
+    frame = frame[frame["requests"].cumsum() > 0]  # start at the first request
     frame["date"] = pd.to_datetime(frame["date"])
     bars = (
         alt.Chart(frame)
@@ -83,9 +85,10 @@ def render() -> None:
     days = (
         st.segmented_control(
             "Period",
-            [7, 30, 90],
-            default=30,
-            format_func=lambda d: f"Last {d} days",
+            [7, 30, 90, ALL_TIME],
+            # The demo data is dated October 2026: show all of it by default.
+            default=ALL_TIME if state.api().mode == "embedded" else 30,
+            format_func=lambda d: "All" if d == ALL_TIME else f"Last {d} days",
             label_visibility="collapsed",
         )
         or 30
@@ -115,7 +118,11 @@ def render() -> None:
         oldest_text = f"{oldest / 24:.0f} days"
     cols[3].metric("Oldest wait", oldest_text, border=True)
     cols = st.columns(4)
-    cols[0].metric(f"Requests, last {days} days", req["total"], border=True)
+    cols[0].metric(
+        "Requests" if days == ALL_TIME else f"Requests, last {days} days",
+        req["total"],
+        border=True,
+    )
     median = decisions["cycle_time_hours_median"]
     cols[1].metric(
         "Median time to a decision",
